@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+
+  # ── Already running ────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: smartsure-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - smartsure-net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: smartsure-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - smartsure-net
+
+  zipkin:
+    image: openzipkin/zipkin:latest
+    container_name: smartsure-zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - smartsure-net
+
+  # ── New observability stack ────────────────────
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: smartsure-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=7d'
+    networks:
+      - smartsure-net
+
+  loki:
+    image: grafana/loki:latest
+    container_name: smartsure-loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - smartsure-net
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: smartsure-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - prometheus
+      - loki
+    networks:
+      - smartsure-net
+
+networks:
+  smartsure-net:
+    driver: bridge
