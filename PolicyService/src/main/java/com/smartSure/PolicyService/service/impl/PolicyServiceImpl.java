@@ -397,6 +397,16 @@ public class PolicyServiceImpl implements PolicyService {
                 request.getPaymentFrequency(), request.getCustomerAge());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean validateCoverage(Long policyId, Long userId, boolean isAdmin) {
+        Policy policy = getPolicy(policyId);
+        if (!isAdmin && !policy.getCustomerId().equals(userId)) {
+            return false;
+        }
+        return policy.getStatus() == Policy.PolicyStatus.ACTIVE;
+    }
+
     // ═══════════════════════════════════════════════════════════
     // SCHEDULERS
     // ═══════════════════════════════════════════════════════════

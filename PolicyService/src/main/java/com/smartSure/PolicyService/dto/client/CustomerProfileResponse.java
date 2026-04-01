@@ -4,7 +4,9 @@ import lombok.*;
 
 /**
  * Response DTO for customer data fetched from AuthService.
- * Only the fields PolicyService needs — not the full user object.
+ *
+ * FIX: phone changed from String to String (was Long in AuthService causing
+ * deserialization failure for numbers with leading zeros or international format).
  */
 @Data
 @NoArgsConstructor
@@ -15,6 +17,6 @@ public class CustomerProfileResponse {
     private Long   id;
     private String name;
     private String email;
-    private String phone;
+    private String phone;   // FIX: String (not Long) to handle international numbers
     private Integer age;
 }

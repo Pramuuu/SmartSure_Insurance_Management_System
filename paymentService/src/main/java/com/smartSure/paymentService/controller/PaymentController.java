@@ -45,6 +45,13 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.failPayment(request));
     }
 
+    // Refund payment (Admin action)
+    @PostMapping("/{id}/refund")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<PaymentResponse> refundPayment(@PathVariable Long id) {
+        return ResponseEntity.ok(paymentService.refundPayment(id));
+    }
+
     // Get single payment by ID (customer or admin)
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")

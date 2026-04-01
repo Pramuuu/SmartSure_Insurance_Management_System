@@ -1,0 +1,178 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # SERVICE DISCOVERY & CONFIG
+  # ==========================================
+  serviceregistry:
+    build:
+      context: ./ServiceRegistry
+      dockerfile: Dockerfile
+    container_name: smartsure-serviceregistry
+    ports:
+      - "8761:8761"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartsure-network
+
+  configserver:
+    build:
+      context: ./config_server_smart_sure
+      dockerfile: Dockerfile
+    container_name: smartsure-configserver
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://serviceregistry:8761/eureka
+    ports:
+      - "8888:8888"
+    depends_on:
+      serviceregistry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartsure-network
+
+  # ==========================================
+  # API GATEWAY
+  # ==========================================
+  apigateway:
+    build:
+      context: ./ApiGatewaySmartSure
+      dockerfile: Dockerfile
+    container_name: smartsure-apigateway
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://serviceregistry:8761/eureka
+      - LOKI_URL=http://smartsure-loki:3100
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://smartsure-zipkin:9411/api/v2/spans
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:4200
+      # Security variables are bound via .env file
+    ports:
+      - "8080:8080"
+    depends_on:
+      configserver:
+        condition: service_healthy
+    networks:
+      - smartsure-network
+
+  # ==========================================
+  # MICROSERVICES
+  # ==========================================
+  authservice:
+    build:
+      context: ./AuthService
+      dockerfile: Dockerfile
+    container_name: smartsure-authservice
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://smartsure-mysql:3306/authservice_database?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=pramod280504
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://serviceregistry:8761/eureka
+      - LOKI_URL=http://smartsure-loki:3100
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://smartsure-zipkin:9411/api/v2/spans
+    ports:
+      - "8081:8081"
+    depends_on:
+      configserver:
+        condition: service_healthy
+    networks:
+      - smartsure-network
+
+  policyservice:
+    build:
+      context: ./PolicyService
+      dockerfile: Dockerfile
+    container_name: smartsure-policyservice
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://smartsure-mysql:3306/smartsure_policy_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=pramod280504
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://serviceregistry:8761/eureka
+      - LOKI_URL=http://smartsure-loki:3100
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://smartsure-zipkin:9411/api/v2/spans
+      - SPRING_RABBITMQ_HOST=smartsure-rabbitmq
+    ports:
+      - "8082:8082"
+    depends_on:
+      configserver:
+        condition: service_healthy
+    networks:
+      - smartsure-network
+
+  claimservice:
+    build:
+      context: ./claimService
+      dockerfile: Dockerfile
+    container_name: smartsure-claimservice
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://smartsure-mysql:3306/claimService_database?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=pramod280504
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://serviceregistry:8761/eureka
+      - LOKI_URL=http://smartsure-loki:3100
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://smartsure-zipkin:9411/api/v2/spans
+      - SPRING_RABBITMQ_HOST=smartsure-rabbitmq
+    ports:
+      - "8083:8083"
+    depends_on:
+      configserver:
+        condition: service_healthy
+    networks:
+      - smartsure-network
+
+  paymentservice:
+    build:
+      context: ./paymentService
+      dockerfile: Dockerfile
+    container_name: smartsure-paymentservice
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://smartsure-mysql:3306/paymentService_db?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=pramod280504
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://serviceregistry:8761/eureka
+      - LOKI_URL=http://smartsure-loki:3100
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://smartsure-zipkin:9411/api/v2/spans
+      - SPRING_RABBITMQ_HOST=smartsure-rabbitmq
+    ports:
+      - "8084:8084"
+    depends_on:
+      configserver:
+        condition: service_healthy
+    networks:
+      - smartsure-network
+
+  adminservice:
+    build:
+      context: ./adminService
+      dockerfile: Dockerfile
+    container_name: smartsure-adminservice
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - SPRING_DATASOURCE_URL=jdbc:mysql://smartsure-mysql:3306/adminService_database?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=pramod280504
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://serviceregistry:8761/eureka
+      - LOKI_URL=http://smartsure-loki:3100
+      - MANAGEMENT_ZIPKIN_TRACING_ENDPOINT=http://smartsure-zipkin:9411/api/v2/spans
+      - SPRING_RABBITMQ_HOST=smartsure-rabbitmq
+    ports:
+      - "8085:8085"
+    depends_on:
+      configserver:
+        condition: service_healthy
+    networks:
+      - smartsure-network
+
+networks:
+  smartsure-network:
+    external: true # References the network created by the infrastructure docker-compose

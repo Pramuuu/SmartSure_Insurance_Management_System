@@ -30,6 +30,14 @@ public class AdminController {
     private final AdminService adminService;
     private final AuditLogService auditLogService;
 
+    // ==================== DASHBOARD METRICS ====================
+
+    @GetMapping("/dashboard")
+    @Operation(summary = "Get admin dashboard metrics")
+    public ResponseEntity<com.smartSure.adminService.dto.DashboardMetricsResponse> getDashboardMetrics() {
+        return ResponseEntity.ok(adminService.getDashboardMetrics());
+    }
+
     // ==================== CLAIM MANAGEMENT ====================
 
     @GetMapping("/claims")

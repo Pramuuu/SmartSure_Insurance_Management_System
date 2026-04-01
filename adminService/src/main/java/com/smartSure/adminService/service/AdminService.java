@@ -22,6 +22,25 @@ public class AdminService {
     private final UserFeignClient userFeignClient;
     private final AuditLogService auditLogService;
 
+    // ==================== DASHBOARD METRICS ====================
+    public com.smartSure.adminService.dto.DashboardMetricsResponse getDashboardMetrics() {
+        long totalUsers = userFeignClient.getAllUsers().size();
+        long totalPolicies = policyFeignClient.getAllPolicies().size();
+        List<ClaimDTO> allClaims = claimFeignClient.getAllClaims();
+        long totalClaims = allClaims.size();
+        long pendingClaims = allClaims.stream()
+                .filter(c -> "UNDER_REVIEW".equals(c.getStatus()) || "SUBMITTED".equals(c.getStatus()))
+                .count();
+
+        return com.smartSure.adminService.dto.DashboardMetricsResponse.builder()
+                .totalUsers(totalUsers)
+                .totalPolicies(totalPolicies)
+                .totalClaims(totalClaims)
+                .pendingClaims(pendingClaims)
+                .recentActivity(auditLogService.getRecentLogs(5))
+                .build();
+    }
+
     // ==================== CLAIM MANAGEMENT ====================
 
     // Get all claims — full admin view

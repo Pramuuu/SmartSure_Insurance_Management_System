@@ -71,9 +71,16 @@ public class PaymentService {
     }
 
     // Confirm payment after Razorpay success callback — marks SUCCESS, publishes RabbitMQ event
+    // FIX: Added HMAC validation to prevent spoofing
     public PaymentResponse confirmPayment(ConfirmPaymentRequest req) {
+        verifyRazorpaySignature(req.getRazorpayOrderId(), req.getRazorpayPaymentId(), req.getRazorpaySignature());
+
         Payment payment = paymentRepository.findByRazorpayOrderId(req.getRazorpayOrderId())
                 .orElseThrow(() -> new RuntimeException("Payment not found for order: " + req.getRazorpayOrderId()));
+
+        if (payment.getStatus() == Payment.PaymentStatus.SUCCESS) {
+            throw new IllegalStateException("Payment already processed");
+        }
 
         payment.setStatus(Payment.PaymentStatus.SUCCESS);
         payment.setRazorpayPaymentId(req.getRazorpayPaymentId());
@@ -94,6 +101,79 @@ public class PaymentService {
         rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, RabbitMQConfig.PAYMENT_COMPLETED_KEY, event);
         log.info("PaymentCompletedEvent published — premiumId={}", saved.getPremiumId());
         return toResponse(saved, null);
+    }
+
+    private void verifyRazorpaySignature(String orderId, String paymentId, String signature) {
+        try {
+            String payload = orderId + "|" + paymentId;
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(razorpayKeySecret.getBytes(), "HmacSHA256"));
+            byte[] hash = mac.doFinal(payload.getBytes());
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if(hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            if (!hexString.toString().equals(signature)) {
+                throw new RuntimeException("Invalid Razorpay signature. Potential spoofing attempt!");
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to verify Razorpay signature: " + e.getMessage());
+        }
+    }
+
+    // Refund payment
+    public PaymentResponse refundPayment(Long paymentId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new RuntimeException("Payment not found: " + paymentId));
+
+        if (payment.getStatus() != Payment.PaymentStatus.SUCCESS) {
+            throw new IllegalStateException("Only successful payments can be refunded");
+        }
+        
+        // In a real scenario, we'd make a Razorpay refund API call here:
+        // razorpay.payments.refund(refundRequest)
+
+        payment.setStatus(Payment.PaymentStatus.REFUNDED);
+        payment.setUpdatedAt(LocalDateTime.now());
+        return toResponse(paymentRepository.save(payment), null);
+    }
+
+    // Saga: Pay out claim to customer when ClaimService publishes APPROVED decision
+    @org.springframework.amqp.rabbit.annotation.RabbitListener(queues = RabbitMQConfig.CLAIM_PAYOUT_QUEUE)
+    public void processClaimPayout(com.smartSure.paymentService.dto.ClaimDecisionEvent event) {
+        log.info("Received ClaimDecisionEvent for claimId={}, decision={}", event.getClaimId(), event.getDecision());
+
+        if (!"APPROVED".equals(event.getDecision())) {
+            log.info("Claim {} was not approved (decision: {}). Skipping payout.", event.getClaimId(), event.getDecision());
+            return;
+        }
+
+        try {
+            // In a real scenario, we'd make a Razorpay Payout API call here to transfer funds back
+            // e.g., razorpay.payouts.create(payoutRequest)
+
+            Payment payout = Payment.builder()
+                    .policyId(event.getPolicyId())
+                    .amount(event.getAmount())
+                    // Assuming customer logic mapping; using null or retrieving via feign
+                    // .customerId(...)
+                    .paymentMethod(Payment.PaymentMethod.UPI) // default or fetch from preferred method
+                    .status(Payment.PaymentStatus.SUCCESS)
+                    .razorpayPaymentId("PAYOUT_" + event.getClaimId())
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+
+            paymentRepository.save(payout);
+            log.info("Successfully processed payout for claimId={}, amount={}", event.getClaimId(), event.getAmount());
+
+        } catch (Exception e) {
+            log.error("Failed to process payout for claimId={}: {}", event.getClaimId(), e.getMessage());
+            // Retry logic or DLQ handled by RabbitMQ
+            throw new RuntimeException("Payout processing failed", e);
+        }
     }
 
     // Mark payment as failed

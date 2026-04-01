@@ -33,6 +33,8 @@ public interface PolicyService {
 
     PremiumCalculationResponse calculatePremium(PremiumCalculationRequest request);
 
+    boolean validateCoverage(Long policyId, Long userId, boolean isAdmin);
+
     void expirePolicies();
 
     void markOverduePremiums();

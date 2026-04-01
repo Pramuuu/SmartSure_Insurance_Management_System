@@ -9,17 +9,18 @@ import org.springframework.web.bind.annotation.PathVariable;
 /**
  * Feign client for AuthService.
  *
- * name        = Eureka service name (used when Eureka is enabled)
- * url         = direct URL (used when Eureka is disabled — for local testing)
- * fallback    = class that runs when circuit breaker is OPEN
+ * FIXES APPLIED:
+ * 1. Removed hardcoded url="${services.auth-service.url:...}" — this bypassed Eureka discovery.
+ *    When both name AND url are specified, the url takes priority and Eureka is ignored.
+ *    Now it uses Eureka lb:// load balancing only.
+ * 2. Endpoints are under /user/internal/** which are now properly routed through the
+ *    gateway route added in ApiGateway application.properties (routes[7]).
  *
- * The @CircuitBreaker on the methods in PolicyService wraps calls
- * to this client. If AuthService is down, the fallback provides
- * safe default values so PolicyService can still function.
+ * Fallback strategy: return safe defaults so PolicyService stays operational
+ * even when AuthService is temporarily unavailable.
  */
 @FeignClient(
         name = "AUTHSERVICE",
-        url = "${services.auth-service.url:http://localhost:8081}",
         fallback = AuthServiceFallback.class
 )
 public interface AuthServiceClient {

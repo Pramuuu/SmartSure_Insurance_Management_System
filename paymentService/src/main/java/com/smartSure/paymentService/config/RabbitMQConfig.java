@@ -15,9 +15,11 @@ public class RabbitMQConfig {
 
     // Routing keys
     public static final String PAYMENT_COMPLETED_KEY = "payment.completed";
+    public static final String CLAIM_DECISION_KEY    = "claim.decision";
 
     // Queues
     public static final String PAYMENT_COMPLETED_QUEUE = "payment.completed.queue";
+    public static final String CLAIM_PAYOUT_QUEUE      = "payment.claim.payout.queue";
 
     @Bean
     public TopicExchange exchange() {
@@ -35,6 +37,19 @@ public class RabbitMQConfig {
                 .bind(paymentCompletedQueue())
                 .to(exchange())
                 .with(PAYMENT_COMPLETED_KEY);
+    }
+
+    @Bean
+    public Queue claimPayoutQueue() {
+        return QueueBuilder.durable(CLAIM_PAYOUT_QUEUE).build();
+    }
+
+    @Bean
+    public Binding claimPayoutBinding() {
+        return BindingBuilder
+                .bind(claimPayoutQueue())
+                .to(exchange())
+                .with(CLAIM_DECISION_KEY);
     }
 
     @Bean

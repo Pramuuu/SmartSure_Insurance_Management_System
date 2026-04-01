@@ -136,7 +136,22 @@ public class PolicyController {
         );
     }
 
-    // ==================== PREMIUM CALCULATION ====================
+    // ==================== PREMIUM CALCULATION & VALIDATION ====================
+
+    @GetMapping("/{policyId}/validate-coverage")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+    public ResponseEntity<Boolean> validateCoverage(@PathVariable Long policyId) {
+        Long userId = SecurityUtils.getCurrentUserId();
+        boolean isAdmin = SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getAuthorities()
+                .stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        return ResponseEntity.ok(
+                policyService.validateCoverage(policyId, userId, isAdmin)
+        );
+    }
 
     @PostMapping("/calculate-premium")
     public ResponseEntity<PremiumCalculationResponse> calculatePremium(
