@@ -37,7 +37,7 @@ public class SecurityConfig {
                         "/swagger-ui.html",
 						"/actuator/**"
                 ).permitAll()
-		        .anyRequest().permitAll())
+		        .anyRequest().authenticated())
 		.addFilterBefore(internalRequestFilter, UsernamePasswordAuthenticationFilter.class)
 		.addFilterAfter(headerAuthenticationFilter, InternalRequestFilter.class);
 		

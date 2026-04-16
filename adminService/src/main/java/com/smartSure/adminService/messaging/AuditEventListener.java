@@ -13,13 +13,21 @@ public class AuditEventListener {
 
     private final AuditLogService auditLogService;
 
-    // Auto-log claim decisions — no manual admin action needed
     @RabbitListener(queues = RabbitMQConfig.ADMIN_CLAIM_AUDIT_QUEUE)
     public void handleClaimDecision(ClaimDecisionEvent event) {
-        log.info("Audit: ClaimDecision received — claimId={}, decision={}", event.getClaimId(), event.getDecision());
-        // adminId=0 means system-generated log
-        auditLogService.log(0L, event.getDecision() + "_CLAIM", "Claim", event.getClaimId(),
-                "Auto-logged via RabbitMQ — customer: " + event.getCustomerEmail());
+        log.info("Audit: ClaimDecision received — claimId={}, decision={}",
+                event.getClaimId(), event.getDecision());
+
+        String details = "customer: " + event.getCustomerEmail()
+                + (event.getRemarks() != null ? " | remarks: " + event.getRemarks() : "");
+
+        auditLogService.log(
+                0L,
+                event.getDecision() + "_CLAIM",
+                "Claim",
+                event.getClaimId(),
+                details
+        );
     }
 
     // Auto-log payment completions

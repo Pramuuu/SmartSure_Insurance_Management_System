@@ -1,0 +1,62 @@
+<div class="auth-page">
+  <div class="auth-bg"></div>
+  <div class="auth-left">
+    <div class="brand">
+      <div class="brand-icon">S</div>
+      <div><div class="brand-name">SmartSure</div><div class="brand-tag">Insurance Management Platform</div></div>
+    </div>
+    <div class="hero-text">
+      <h1>Start your<br><span>coverage today.</span></h1>
+      <p>Join thousands of customers who trust SmartSure for comprehensive, reliable insurance solutions.</p>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="hs-val">6+</div><div class="hs-lbl">Policy Types</div></div>
+      <div class="hero-stat"><div class="hs-val">₹5L–₹50L</div><div class="hs-lbl">Coverage Range</div></div>
+      <div class="hero-stat"><div class="hs-val">24/7</div><div class="hs-lbl">Claims Support</div></div>
+    </div>
+  </div>
+  <div class="auth-right">
+    <div class="auth-card">
+      <div class="auth-card-header">
+        <h2>Create account</h2>
+        <p>Get started with SmartSure</p>
+      </div>
+      <form (ngSubmit)="submit()">
+        <div class="grid-2" style="gap:12px;">
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">First Name *</label>
+            <input type="text" class="form-control" [(ngModel)]="firstName" name="firstName" placeholder="Rahul" required />
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label class="form-label">Last Name</label>
+            <input type="text" class="form-control" [(ngModel)]="lastName" name="lastName" placeholder="Sharma" />
+          </div>
+        </div>
+        <div class="form-group mt-16">
+          <label class="form-label">Email address *</label>
+          <input type="email" class="form-control" [(ngModel)]="email" name="email" placeholder="rahul@example.com" required />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password *</label>
+          <div class="password-wrap">
+            <input [type]="showPassword ? 'text' : 'password'" class="form-control" [(ngModel)]="password" name="password" placeholder="Min. 8 characters" required />
+            <button type="button" class="show-pwd" (click)="showPassword = !showPassword">{{ showPassword ? '🙈' : '👁️' }}</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Account Type</label>
+          <select class="form-control" [(ngModel)]="role" name="role">
+            <option value="CUSTOMER">Customer — Buy & manage policies</option>
+            <option value="ADMIN">Admin — Manage the platform</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block btn-lg" [disabled]="loading">
+          <span *ngIf="loading" class="loading-spinner" style="width:16px;height:16px;border-width:2px"></span>
+          <span>{{ loading ? 'Creating…' : 'Create account' }}</span>
+        </button>
+      </form>
+      <div class="auth-divider"><span>or</span></div>
+      <div class="auth-footer">Already have an account? <a routerLink="/auth/login">Sign in →</a></div>
+    </div>
+  </div>
+</div>

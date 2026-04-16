@@ -20,13 +20,16 @@ public class UserService {
 	
 	private final UserRepository repo;
 	private final ModelMapper modelMapper;
-	
+
 	public UserResponseDto add(UserRequestDto reqDto) {
-		
-		User user = repo.findByEmail(reqDto.getEmail()).orElseThrow(() -> new UserNotFoundException("This email is not registered"));
-		modelMapper.map(reqDto, user);
+		User user = repo.findByEmail(reqDto.getEmail())
+				.orElseThrow(() -> new UserNotFoundException("Email not registered"));
+		// Do NOT use modelMapper here — it maps email too
+		user.setFirstName(reqDto.getFirstName());
+		user.setLastName(reqDto.getLastName());
+		user.setPhone(reqDto.getPhone());
+		// Never update email or password here
 		repo.save(user);
-		
 		return modelMapper.map(user, UserResponseDto.class);
 	}
 	

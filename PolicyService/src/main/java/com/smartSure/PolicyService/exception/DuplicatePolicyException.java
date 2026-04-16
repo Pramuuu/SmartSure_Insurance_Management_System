@@ -7,6 +7,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 public class DuplicatePolicyException extends RuntimeException {
 
     public DuplicatePolicyException() {
-        super("An active policy of this type already exists for this customer");
+        super("You already have an active policy of this type. You can purchase this plan again once your current policy expires or its coverage is fully utilized.");
     }
 }

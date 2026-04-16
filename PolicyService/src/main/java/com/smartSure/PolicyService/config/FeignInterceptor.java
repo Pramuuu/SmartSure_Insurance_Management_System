@@ -1,7 +1,5 @@
 package com.smartSure.PolicyService.config;
 
-
-import com.smartSure.PolicyService.util.HeaderUtils;
 import feign.RequestInterceptor;
 import feign.RequestTemplate;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,6 +20,20 @@ public class FeignInterceptor implements RequestInterceptor {
 
         HttpServletRequest request = attributes.getRequest();
 
-        HeaderUtils.copyHeaders(request, template);
+        // Only forward required headers
+        copyHeaderIfPresent(request, template, "X-User-Id");
+        copyHeaderIfPresent(request, template, "X-User-Role");
+        copyHeaderIfPresent(request, template, "X-Request-Id");
+    }
+
+    //  MOVE THIS OUTSIDE apply()
+    private void copyHeaderIfPresent(HttpServletRequest request,
+                                     RequestTemplate template,
+                                     String headerName) {
+
+        String value = request.getHeader(headerName);
+        if (value != null && !value.isBlank()) {
+            template.header(headerName, value);
+        }
     }
 }

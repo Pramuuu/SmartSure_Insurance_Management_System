@@ -1,0 +1,52 @@
+.page { display: flex; flex-direction: column; min-height: 100vh; }
+.topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; height: var(--topbar-h); display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 10; }
+.page-title { font-family: var(--font-head); font-size: 18px; font-weight: 700; }
+.page-sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.topbar-actions { margin-left: auto; display: flex; gap: 10px; }
+.content { padding: 28px 32px; flex: 1; }
+
+.claims-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px,1fr)); gap: 16px; }
+
+.claim-card { transition: all 0.2s; &:hover { border-color: var(--border2); transform: translateY(-2px); } }
+.claim-card-header { display: flex; justify-content: space-between; align-items: flex-start; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.claim-num  { font-family: var(--font-mono); font-size: 12px; color: var(--accent2); margin-bottom: 4px; }
+.claim-date { font-size: 12px; }
+.claim-desc { padding: 14px 20px; font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--border); line-height: 1.6; }
+.claim-footer { display: flex; justify-content: space-between; align-items: center; padding: 12px 20px; border-bottom: 1px solid var(--border); }
+.claim-amount { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--text); }
+.claim-remarks { font-size: 12px; font-style: italic; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.claim-progress { padding: 14px 20px; }
+.progress-steps { display: flex; align-items: center; gap: 0; }
+.ps { font-size: 10px; font-weight: 500; color: var(--dim); white-space: nowrap; padding: 3px 6px; border-radius: 4px; transition: all 0.2s; }
+.ps.done     { color: var(--accent); }
+.ps.active   { color: var(--accent2); background: rgba(0,153,255,0.1); }
+.ps.approved { color: var(--accent); background: rgba(0,229,180,0.1); }
+.ps.rejected { color: var(--accent3); background: rgba(255,107,107,0.1); }
+.ps-line { flex: 1; height: 1px; background: var(--border); margin: 0 4px; }
+
+.ml-8 { margin-left: 8px; }
+.text-center { text-align: center; }
+
+.wizard-layout { max-width: 600px; }
+
+.claim-ref { display: flex; align-items: center; gap: 8px; }
+
+.upload-zone {
+  border: 2px dashed var(--border2); border-radius: var(--r2);
+  padding: 36px 20px; text-align: center; cursor: pointer;
+  transition: all 0.2s;
+  &:hover { border-color: rgba(0,229,180,0.4); background: rgba(0,229,180,0.03); }
+}
+.upload-icon  { font-size: 36px; margin-bottom: 12px; }
+.upload-label { font-size: 14px; color: var(--text); font-weight: 500; margin-bottom: 6px; }
+.upload-hint  { font-size: 12px; color: var(--dim); }
+.upload-actions { display: flex; gap: 10px; }
+.divider { height: 1px; background: var(--border); margin: 18px 0; }
+
+.success-layout { display: flex; justify-content: center; align-items: center; min-height: 60vh; }
+.success-card { text-align: center; max-width: 440px; }
+.success-icon { font-size: 64px; margin-bottom: 16px; }
+.success-card h2 { font-family: var(--font-head); font-size: 26px; font-weight: 700; margin-bottom: 10px; }
+.success-card p  { color: var(--muted); font-size: 14px; line-height: 1.6; margin-bottom: 20px; }
+.success-ref { background: var(--surface); border: 1px solid rgba(0,229,180,0.2); border-radius: 8px; padding: 10px 18px; display: inline-block; font-family: var(--font-mono); font-size: 14px; color: var(--accent); margin-bottom: 24px; }
+.success-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }

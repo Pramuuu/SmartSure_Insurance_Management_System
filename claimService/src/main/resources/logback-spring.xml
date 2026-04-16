@@ -7,7 +7,6 @@
     <!-- Loki Appender -->
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
-            <!-- ✅ Correct URL -->
             <url>http://localhost:3100/loki/api/v1/push</url>
         </http>
 

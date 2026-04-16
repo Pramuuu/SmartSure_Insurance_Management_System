@@ -7,24 +7,36 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@FeignClient(name = "POLICYSERVICE")
+@FeignClient(name = "policyservice")
 public interface PolicyFeignClient {
 
-    // GET /api/policies/admin/all — no headers needed, ADMIN role via JWT
-    @GetMapping("/api/policies/admin/all")
+    /**
+     * FIX: Changed from /api/policies/admin/all to /api/policies/admin/list
+     *
+     * The old endpoint /api/policies/admin/all returns PolicyPageResponse:
+     *   { "content": [...], "pageNumber": 0, "totalElements": N, ... }
+     *
+     * Feign tried to deserialize that object as List<PolicyDTO> and threw a
+     * deserialization exception. This broke:
+     *   - Admin dashboard (policy count, policy stats)
+     *   - Admin policies page
+     *   - Admin user detail → policies tab
+     *
+     * The new /api/policies/admin/list endpoint (added to PolicyController)
+     * returns List<PolicyResponse> directly — no pagination wrapper.
+     */
+    @GetMapping("/api/policies/admin/list")
     List<PolicyDTO> getAllPolicies();
 
-    // GET /api/policies/{policyId} — requires X-User-Id and X-User-Role headers
-    // Passing ADMIN role so policyService skips ownership check
     @GetMapping("/api/policies/{policyId}")
-    PolicyDTO getPolicyById(
-            @PathVariable Long policyId
-    );
+    PolicyDTO getPolicyById(@PathVariable Long policyId);
 
-    // PUT /api/policies/admin/{policyId}/status — correct admin cancel/status endpoint
     @PutMapping("/api/policies/admin/{policyId}/status")
     PolicyDTO updatePolicyStatus(
             @PathVariable Long policyId,
             @RequestBody PolicyStatusUpdateRequest request
     );
+
+    @GetMapping("/api/policies/admin/summary")
+    Object getPolicySummary();
 }

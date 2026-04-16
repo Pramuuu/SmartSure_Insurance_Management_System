@@ -40,6 +40,7 @@ public class RabbitMQConfig {
 
     // ── Queue names ─────────────────────────────────────────────────────
     public static final String QUEUE_POLICY_PURCHASED        = "notification.policy.purchased";
+    public static final String QUEUE_PAYMENT_COMPLETED       = "policy.payment.completed"; // New queue for DB update
     public static final String QUEUE_PREMIUM_PAID            = "notification.premium.paid";
     public static final String QUEUE_POLICY_CANCELLED        = "notification.policy.cancelled";
     public static final String QUEUE_PREMIUM_DUE_REMINDER    = "notification.premium.due.reminder";
@@ -48,9 +49,8 @@ public class RabbitMQConfig {
 
     // ── Routing keys ─────────────────────────────────────────────────────
     public static final String KEY_POLICY_PURCHASED       = "policy.purchased";
-    // FIXED: PaymentService publishes "payment.completed" to smartsure.exchange
-    // Now PolicyService listens on the same exchange with the same routing key
-    public static final String KEY_PREMIUM_PAID           = "payment.completed";
+    public static final String KEY_PAYMENT_COMPLETED      = "payment.completed"; // From PaymentService
+    public static final String KEY_PREMIUM_PAID           = "premium.paid"; // Internal to trigger NotificationConsumer
     public static final String KEY_POLICY_CANCELLED       = "policy.cancelled";
     public static final String KEY_PREMIUM_DUE_REMINDER   = "premium.due.reminder";
     public static final String KEY_POLICY_EXPIRY_REMINDER = "policy.expiry.reminder";
@@ -91,7 +91,21 @@ public class RabbitMQConfig {
         return BindingBuilder.bind(policyPurchasedQueue()).to(exchange()).with(KEY_POLICY_PURCHASED);
     }
 
-    // ── Premium Paid Queue (FIXED: now bound to smartsure.exchange) ──────
+    // ── Payment Completed Queue (PolicyService backend listener) ──────
+    @Bean
+    public Queue paymentCompletedQueue() {
+        return QueueBuilder.durable(QUEUE_PAYMENT_COMPLETED)
+                .withArgument("x-dead-letter-exchange", DLQ_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", "dlq.payment.completed")
+                .build();
+    }
+
+    @Bean
+    public Binding paymentCompletedBinding() {
+        return BindingBuilder.bind(paymentCompletedQueue()).to(exchange()).with(KEY_PAYMENT_COMPLETED);
+    }
+
+    // ── Premium Paid Queue (Internal NotificationConsumer) ──────
     @Bean
     public Queue premiumPaidQueue() {
         return QueueBuilder.durable(QUEUE_PREMIUM_PAID)
@@ -102,7 +116,6 @@ public class RabbitMQConfig {
 
     @Bean
     public Binding premiumPaidBinding() {
-        // Consumes payment.completed events from the unified exchange
         return BindingBuilder.bind(premiumPaidQueue()).to(exchange()).with(KEY_PREMIUM_PAID);
     }
 

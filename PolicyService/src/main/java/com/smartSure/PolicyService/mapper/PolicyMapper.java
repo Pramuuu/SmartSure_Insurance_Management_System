@@ -9,7 +9,7 @@ import org.mapstruct.Mapping;
 
 import java.util.List;
 
-@Mapper(componentModel = "spring", uses = {PremiumMapper.class, PolicyTypeMapper.class})
+@Mapper(componentModel = "spring", uses = {PremiumMapper.class, PolicyTypeMapper.class}, unmappedTargetPolicy = org.mapstruct.ReportingPolicy.IGNORE)
 public interface PolicyMapper {
 
     @Mapping(target = "status", expression = "java(policy.getStatus().name())")

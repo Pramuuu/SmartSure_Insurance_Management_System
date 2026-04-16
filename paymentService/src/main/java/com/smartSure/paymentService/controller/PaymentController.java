@@ -4,6 +4,7 @@ import com.smartSure.paymentService.dto.ConfirmPaymentRequest;
 import com.smartSure.paymentService.dto.FailPaymentRequest;
 import com.smartSure.paymentService.dto.PaymentRequest;
 import com.smartSure.paymentService.dto.PaymentResponse;
+import com.smartSure.paymentService.dto.SimulatePaymentRequest;
 import com.smartSure.paymentService.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,7 +21,19 @@ public class PaymentController {
 
     private final PaymentService paymentService;
 
-    // Step 1: Customer initiates payment — returns razorpayOrderId + razorpayKeyId for frontend checkout
+    // ── Mock Simulator (no third-party gateway required) ──────────────────────
+    // Single-call endpoint: validates, saves, and randomly resolves the payment
+    // as SUCCESS (80%) or FAILED (20%). Publishes RabbitMQ event on success.
+    // The client can force a specific outcome with the forceOutcome field.
+    @PostMapping("/simulate")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<PaymentResponse> simulatePayment(
+            @AuthenticationPrincipal String userId,
+            @RequestBody SimulatePaymentRequest request) {
+        return ResponseEntity.ok(paymentService.simulatePayment(Long.parseLong(userId), request));
+    }
+
+    // Step 1: Customer initiates payment — returns razorpayOrderId + razorpayKeyId
     @PostMapping("/initiate")
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<PaymentResponse> initiatePayment(
@@ -52,6 +65,12 @@ public class PaymentController {
         return ResponseEntity.ok(paymentService.refundPayment(id));
     }
 
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<PaymentResponse>> getAllPayments() {
+        return ResponseEntity.ok(paymentService.getAllPayments());
+    }
+
     // Get single payment by ID (customer or admin)
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")
@@ -72,5 +91,22 @@ public class PaymentController {
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<List<PaymentResponse>> getPaymentsByPolicy(@PathVariable Long policyId) {
         return ResponseEntity.ok(paymentService.getPaymentsByPolicy(policyId));
+    }
+
+    /**
+     * FIX: New endpoint for AdminService Feign client.
+     *
+     * AdminService's PaymentFeignClient called GET /api/payments/customer/{customerId}
+     * but this endpoint did not exist. The "Admin → User → Payments" detail tab
+     * always returned 404 / Feign error.
+     *
+     * PaymentService.getPaymentsByCustomer(Long) already existed — only the
+     * controller endpoint was missing.
+     */
+    @GetMapping("/customer/{customerId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<PaymentResponse>> getPaymentsByCustomer(
+            @PathVariable Long customerId) {
+        return ResponseEntity.ok(paymentService.getPaymentsByCustomer(customerId));
     }
 }

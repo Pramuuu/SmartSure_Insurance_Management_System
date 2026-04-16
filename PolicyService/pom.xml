@@ -24,7 +24,7 @@
 		<java.version>17</java.version>
 		<spring-cloud.version>2023.0.1</spring-cloud.version>
 		<mapstruct.version>1.5.5.Final</mapstruct.version>
-		<lombok.version>1.18.32</lombok.version>
+		<lombok.version>1.18.36</lombok.version>
 	</properties>
 
 	<!-- ================= DEPENDENCIES ================= -->
@@ -63,6 +63,12 @@
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>
 			<artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+		</dependency>
+
+		<!-- Spring Cloud Config Client -->
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-config</artifactId>
 		</dependency>
 
 		<!-- OpenFeign -->
@@ -199,7 +205,7 @@
 <!--		</dependency>-->
 		<!-- ================= OBSERVABILITY ================= -->
 
-		<!-- Micrometer Prometheus registry — exposes /actuator/prometheus -->
+		<!-- Micrometer Prometheus registry â€” exposes /actuator/prometheus -->
 		<dependency>
 			<groupId>io.micrometer</groupId>
 			<artifactId>micrometer-registry-prometheus</artifactId>
@@ -211,13 +217,13 @@
 			<artifactId>micrometer-tracing-bridge-brave</artifactId>
 		</dependency>
 
-		<!-- Zipkin reporter — sends spans to your Zipkin Docker container -->
+		<!-- Zipkin reporter â€” sends spans to your Zipkin Docker container -->
 		<dependency>
 			<groupId>io.zipkin.reporter2</groupId>
 			<artifactId>zipkin-reporter-brave</artifactId>
 		</dependency>
 
-		<!-- Loki Logback appender — ships structured logs to Loki Docker container -->
+		<!-- Loki Logback appender â€” ships structured logs to Loki Docker container -->
 		<dependency>
 			<groupId>com.github.loki4j</groupId>
 			<artifactId>loki-logback-appender</artifactId>
@@ -288,6 +294,16 @@
 						</path>
 
 					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+
+			<!-- Surefire Plugin — required for JUnit 5 @Nested test discovery -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.1.2</version>
+				<configuration>
+					<useModulePath>false</useModulePath>
 				</configuration>
 			</plugin>
 

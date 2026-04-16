@@ -1,0 +1,148 @@
+<div class="page">
+  <header class="topbar">
+    <div>
+      <h1 class="page-title">My Policies</h1>
+      <p class="page-sub">Manage and track all your insurance policies</p>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm" (click)="load()">↺ Refresh</button>
+      <button class="btn btn-primary btn-sm" routerLink="/customer/purchase">＋ New Policy</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <!-- Filter chips -->
+    <div class="filter-row mb-24">
+      <button *ngFor="let s of ['ALL','ACTIVE','CREATED','EXPIRED','CANCELLED']"
+        class="chip" [class.active]="filterStatus===s"
+        (click)="filterStatus=s">{{ s }}</button>
+    </div>
+
+    <div class="panel-grid">
+      <!-- Main table -->
+      <div class="card fade-up">
+        <div class="card-header">
+          <div>
+            <div class="card-title">All Policies</div>
+            <div class="card-sub">{{ filtered.length }} {{ filterStatus === 'ALL' ? 'total' : filterStatus.toLowerCase() }} policies</div>
+          </div>
+        </div>
+
+        <app-loading *ngIf="loading"></app-loading>
+
+        <div class="table-wrap" *ngIf="!loading">
+          <div class="empty-state" *ngIf="filtered.length === 0">
+            <div class="empty-icon">🛡️</div>
+            <h3>No policies found</h3>
+            <p>{{ filterStatus === 'ALL' ? 'You haven\'t purchased any policies yet.' : 'No ' + filterStatus.toLowerCase() + ' policies.' }}</p>
+            <button class="btn btn-primary mt-16" routerLink="/customer/purchase">Browse Plans</button>
+          </div>
+          <table *ngIf="filtered.length > 0">
+            <thead>
+              <tr>
+                <th>Policy Number</th>
+                <th>Type</th>
+                <th>Coverage</th>
+                <th>Premium</th>
+                <th>Frequency</th>
+                <th>Expires</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of filtered" (click)="selectPolicy(p)" [class.selected]="selectedPolicy?.id===p.id">
+                <td class="cell-mono">{{ p.policyNumber }}</td>
+                <td class="cell-name">{{ p.policyTypeName || '—' }}</td>
+                <td class="cell-amount text-accent">{{ formatAmt(p.coverageAmount) }}</td>
+                <td class="cell-amount">₹{{ p.premiumAmount?.toLocaleString('en-IN') }}</td>
+                <td style="color:var(--muted)">{{ p.paymentFrequency }}</td>
+                <td style="color:var(--muted)">{{ p.endDate | date:'dd MMM yyyy' }}</td>
+                <td><span class="badge" [class]="getBadgeClass(p.status)">{{ p.status }}</span></td>
+                <td>
+                  <button *ngIf="p.status==='ACTIVE'||p.status==='CREATED'"
+                    class="btn btn-danger btn-sm"
+                    (click)="$event.stopPropagation(); openCancel(p)">Cancel</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Detail panel -->
+      <div class="detail-panel fade-up" *ngIf="selectedPolicy">
+        <div class="card">
+          <div class="policy-header-block">
+            <div class="policy-num">{{ selectedPolicy.policyNumber }}</div>
+            <div class="policy-type-name">{{ selectedPolicy.policyTypeName }}</div>
+            <div class="policy-category">{{ selectedPolicy.policyTypeCategory }}</div>
+            <span class="badge mt-8" [class]="getBadgeClass(selectedPolicy.status)">{{ selectedPolicy.status }}</span>
+          </div>
+
+          <div class="amounts-grid">
+            <div class="amount-box">
+              <div class="amount-label">Coverage</div>
+              <div class="amount-val">{{ formatAmt(selectedPolicy.coverageAmount) }}</div>
+            </div>
+            <div class="amount-box">
+              <div class="amount-label">Premium</div>
+              <div class="amount-val text-accent">₹{{ selectedPolicy.premiumAmount?.toLocaleString('en-IN') }}</div>
+            </div>
+          </div>
+
+          <div class="meta-list">
+            <div class="meta-row"><span class="meta-key">Frequency</span><span class="meta-val">{{ selectedPolicy.paymentFrequency }}</span></div>
+            <div class="meta-row"><span class="meta-key">Start Date</span><span class="meta-val">{{ selectedPolicy.startDate | date:'dd MMM yyyy' }}</span></div>
+            <div class="meta-row"><span class="meta-key">End Date</span><span class="meta-val">{{ selectedPolicy.endDate | date:'dd MMM yyyy' }}</span></div>
+            <div class="meta-row" *ngIf="selectedPolicy.nomineeName"><span class="meta-key">Nominee</span><span class="meta-val">{{ selectedPolicy.nomineeName }}</span></div>
+            <div class="meta-row" *ngIf="selectedPolicy.nomineeRelation"><span class="meta-key">Relation</span><span class="meta-val">{{ selectedPolicy.nomineeRelation }}</span></div>
+          </div>
+
+          <!-- Lifecycle -->
+          <div class="lifecycle-wrap">
+            <div class="lc-title">Policy Lifecycle</div>
+            <div class="lifecycle">
+              <ng-container *ngFor="let step of getLifecycleSteps(selectedPolicy.status); let last=last">
+                <div class="lc-step" [class]="step.state">
+                  <div class="lc-dot"></div>
+                  <div class="lc-name">{{ step.label }}</div>
+                </div>
+                <div class="lc-arrow" *ngIf="!last">→</div>
+              </ng-container>
+            </div>
+          </div>
+
+          <div class="detail-actions" *ngIf="selectedPolicy.status==='ACTIVE'||selectedPolicy.status==='CREATED'">
+            <button class="btn btn-danger btn-sm btn-block" (click)="openCancel(selectedPolicy)">Cancel Policy</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Cancel Modal -->
+<div class="modal-backdrop" *ngIf="showCancelModal" (click)="showCancelModal=false">
+  <div class="modal-card" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Cancel Policy</h3>
+      <button class="modal-close" (click)="showCancelModal=false">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="modal-warn">⚠️ This action cannot be undone. All pending premiums will be waived.</p>
+      <div class="form-group mt-16">
+        <label class="form-label">Reason (optional)</label>
+        <textarea class="form-control" rows="3" [(ngModel)]="cancelReason" placeholder="Why are you cancelling this policy?"></textarea>
+      </div>
+      <p style="font-size:12px;color:var(--muted)">Policy: <strong style="color:var(--text)">{{ selectedPolicy?.policyNumber }}</strong></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" (click)="showCancelModal=false">Keep Policy</button>
+      <button class="btn btn-danger" (click)="confirmCancel()" [disabled]="cancelLoading">
+        <span *ngIf="cancelLoading" class="loading-spinner" style="width:14px;height:14px;border-width:2px"></span>
+        {{ cancelLoading ? 'Cancelling…' : 'Yes, Cancel' }}
+      </button>
+    </div>
+  </div>
+</div>

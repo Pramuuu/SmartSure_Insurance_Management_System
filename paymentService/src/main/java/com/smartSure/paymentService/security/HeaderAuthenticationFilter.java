@@ -26,11 +26,17 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
         String role   = request.getHeader("X-User-Role");
 
         if (userId != null && role != null) {
+
+            //  Normalize role (avoid double ROLE_ prefix)
+            String normalizedRole = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(
-                            userId, null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                            userId,
+                            null,
+                            List.of(new SimpleGrantedAuthority(normalizedRole))
                     );
+
             SecurityContextHolder.getContext().setAuthentication(auth);
         }
 

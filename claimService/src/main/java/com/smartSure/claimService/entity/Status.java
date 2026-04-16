@@ -14,7 +14,7 @@ public enum Status {
     SUBMITTED {
         @Override
         public Status moveTo(Status next) {
-            if (next == UNDER_REVIEW) return next;
+            if (next == UNDER_REVIEW || next == APPROVED || next == REJECTED) return next;
             throw new InvalidStatusTransitionException(this.name(), next.name());
         }
     },

@@ -22,7 +22,7 @@ public class Payment {
     @Column(nullable = false)
     private Long policyId;
 
-    @Column(nullable = false)
+    @Column(nullable = true)
     private Long premiumId;
 
     @Column(nullable = false)
@@ -44,6 +44,7 @@ public class Payment {
     private String failureReason;
 
     @Column(nullable = false, updatable = false)
+    @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
     private LocalDateTime updatedAt;

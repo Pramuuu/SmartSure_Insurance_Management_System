@@ -1,30 +1,36 @@
 package com.smartSure.adminService.feign;
 
 import com.smartSure.adminService.dto.ClaimDTO;
+import com.smartSure.adminService.dto.ClaimStatusUpdateRequest;
 import org.springframework.cloud.openfeign.FeignClient;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @FeignClient(name = "claimservice")
 public interface ClaimFeignClient {
 
-    // Fetch all claims — admin full list
+    // All claims — full admin view
     @GetMapping("/api/claims")
     List<ClaimDTO> getAllClaims();
 
-    // Fetch claims that are UNDER_REVIEW — admin review queue
+    // Claims in SUBMITTED + UNDER_REVIEW — admin work queue
     @GetMapping("/api/claims/under-review")
     List<ClaimDTO> getUnderReviewClaims();
 
-    // Fetch a single claim by ID
+    // Single claim by ID
     @GetMapping("/api/claims/{id}")
     ClaimDTO getClaimById(@PathVariable Long id);
 
-    // Move claim to next status (APPROVED / REJECTED)
+    // Move claim to next status with remarks
+    // FIXED: was @RequestParam("next") String status
     @PutMapping("/api/claims/{id}/status")
-    ClaimDTO updateClaimStatus(@PathVariable Long id, @RequestParam("next") String status);
+    ClaimDTO updateClaimStatus(
+            @PathVariable Long id,
+            @RequestBody ClaimStatusUpdateRequest request
+    );
+
+    // Get all claims for a specific customer — for admin user detail view
+    @GetMapping("/api/claims/customer/{userId}")
+    List<ClaimDTO> getClaimsByUser(@PathVariable Long userId);
 }

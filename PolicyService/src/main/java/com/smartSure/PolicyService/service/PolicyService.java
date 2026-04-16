@@ -19,6 +19,14 @@ public interface PolicyService {
 
     PolicyPageResponse getAllPolicies(Pageable pageable);
 
+    /**
+     * FIX: New method — returns all policies as a flat List with no pagination wrapper.
+     * Used by the new GET /api/policies/admin/list endpoint, which is called by
+     * AdminService's PolicyFeignClient. The Feign client needs a plain List, not a
+     * PolicyPageResponse, to deserialize correctly.
+     */
+    List<PolicyResponse> getAllPoliciesAsList();
+
     PolicyResponse cancelPolicy(Long policyId, Long customerId, String reason);
 
     PolicyResponse renewPolicy(Long customerId, PolicyRenewalRequest request);

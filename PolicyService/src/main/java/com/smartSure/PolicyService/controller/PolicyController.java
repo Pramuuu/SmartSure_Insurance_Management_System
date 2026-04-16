@@ -74,9 +74,7 @@ public class PolicyController {
     public ResponseEntity<PolicyResponse> getPolicyById(@PathVariable Long policyId) {
 
         Long userId = SecurityUtils.getCurrentUserId();
-        String role = SecurityUtils.getCurrentRole();
 
-//        boolean isAdmin = "ROLE_ADMIN".equals(role);
         boolean isAdmin = SecurityContextHolder.getContext()
                 .getAuthentication()
                 .getAuthorities()
@@ -164,6 +162,9 @@ public class PolicyController {
 
     // ==================== ADMIN APIs ====================
 
+    /**
+     * Paginated — for the admin UI table with pagination controls.
+     */
     @GetMapping("/admin/all")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<PolicyPageResponse> getAllPolicies(
@@ -179,6 +180,23 @@ public class PolicyController {
         return ResponseEntity.ok(
                 policyService.getAllPolicies(PageRequest.of(page, size, sort))
         );
+    }
+
+    /**
+     * FIX: New flat-list endpoint for AdminService Feign client.
+     *
+     * AdminService's PolicyFeignClient called /admin/all expecting List<PolicyDTO>,
+     * but /admin/all returns PolicyPageResponse (a paginated wrapper object).
+     * Feign could not deserialize the wrapper as a List — causing a deserialization
+     * exception that broke the admin dashboard, policy stats, and policies page.
+     *
+     * This endpoint returns List<PolicyResponse> with no pagination wrapper,
+     * which Feign can correctly deserialize as List<PolicyDTO>.
+     */
+    @GetMapping("/admin/list")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<PolicyResponse>> getAllPoliciesAsList() {
+        return ResponseEntity.ok(policyService.getAllPoliciesAsList());
     }
 
     @PutMapping("/admin/{policyId}/status")

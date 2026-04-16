@@ -15,9 +15,11 @@ import java.time.LocalDateTime;
 public class ClaimDecisionEvent {
     private Long claimId;
     private Long policyId;
+    private Long customerId;
     private String decision; // APPROVED or REJECTED
     private BigDecimal amount;
     private String customerEmail;
     private String customerName;
+    private String remarks;
     private LocalDateTime decidedAt;
 }

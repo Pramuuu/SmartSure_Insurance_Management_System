@@ -18,3 +18,4 @@ GRANT ALL PRIVILEGES ON adminService_database.* TO 'smartsure'@'%';
 -- GRANT ALL PRIVILEGES ON keycloak_db.* TO 'smartsure'@'%';
 
 FLUSH PRIVILEGES;
+

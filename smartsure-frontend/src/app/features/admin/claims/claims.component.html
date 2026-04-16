@@ -1,0 +1,96 @@
+<div class="page">
+  <header class="topbar">
+    <div><h1 class="page-title">Claim Management</h1><p class="page-sub">Review, approve, and reject customer claims</p></div>
+    <div class="topbar-actions"><button class="btn btn-ghost btn-sm" (click)="load()">↺ Refresh</button></div>
+  </header>
+
+  <div class="content">
+    <div class="filter-row mb-24">
+      <button *ngFor="let s of ['ALL','SUBMITTED','UNDER_REVIEW','APPROVED','REJECTED','DRAFT']"
+        class="chip" [class.active]="filterStatus===s" (click)="filterStatus=s">{{ s }}</button>
+    </div>
+
+    <div class="panel-grid">
+      <!-- Table -->
+      <div class="card fade-up">
+        <div class="card-header">
+          <div><div class="card-title">All Claims</div><div class="card-sub">{{ filtered.length }} claims</div></div>
+        </div>
+        <app-loading *ngIf="loading"></app-loading>
+        <div class="table-wrap" *ngIf="!loading">
+          <div class="empty-state" *ngIf="filtered.length===0">
+            <div class="empty-icon">📋</div><h3>No claims</h3><p>No claims match the current filter.</p>
+          </div>
+          <table *ngIf="filtered.length>0">
+            <thead><tr><th>Claim No.</th><th>Amount</th><th>Policy</th><th>Incident</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              <tr *ngFor="let c of filtered" (click)="select(c)" [class.selected]="selectedClaim?.id===c.id">
+                <td class="cell-mono">{{ c.claimNumber }}</td>
+                <td class="cell-amount text-accent">₹{{ c.claimAmount?.toLocaleString('en-IN') }}</td>
+                <td class="cell-mono" style="font-size:11px">{{ c.policyNumber || '#' + c.policyId }}</td>
+                <td style="color:var(--muted)">{{ c.incidentDate | date:'dd MMM yyyy' }}</td>
+                <td><span class="badge" [class]="getBadge(c.status)">{{ c.status }}</span></td>
+                <td>
+                  <div class="row-actions" (click)="$event.stopPropagation()">
+                    <button *ngIf="c.status==='SUBMITTED'" class="btn btn-ghost btn-sm" (click)="markReview(c.id)" [disabled]="actionLoading">Review</button>
+                    <button *ngIf="c.status==='UNDER_REVIEW'" class="btn btn-primary btn-sm" (click)="select(c)">Decide</button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Action panel -->
+      <div class="action-panel" *ngIf="selectedClaim">
+        <div class="card">
+          <div class="card-header">
+            <div><div class="card-title">Claim Review</div><div class="card-sub">{{ selectedClaim.claimNumber }}</div></div>
+            <button class="btn btn-ghost btn-sm" (click)="selectedClaim=null">×</button>
+          </div>
+          <div class="card-body">
+            <span class="badge mb-16" [class]="getBadge(selectedClaim.status)">{{ selectedClaim.status }}</span>
+
+            <div class="detail-row"><span class="dr-key">Claim Amount</span><span class="dr-val text-accent">₹{{ selectedClaim.claimAmount?.toLocaleString('en-IN') }}</span></div>
+            <div class="detail-row"><span class="dr-key">Policy</span><span class="dr-val cell-mono">{{ selectedClaim.policyNumber || '#' + selectedClaim.policyId }}</span></div>
+            <div class="detail-row"><span class="dr-key">Incident Date</span><span class="dr-val">{{ selectedClaim.incidentDate | date:'dd MMM yyyy' }}</span></div>
+            <div class="detail-row"><span class="dr-key">Submitted</span><span class="dr-val">{{ selectedClaim.createdAt | date:'dd MMM yyyy' }}</span></div>
+
+            <div class="desc-box mt-16">
+              <div class="desc-label">Description</div>
+              <div class="desc-text">{{ selectedClaim.description }}</div>
+            </div>
+
+            <ng-container *ngIf="selectedClaim.status==='SUBMITTED'||selectedClaim.status==='UNDER_REVIEW'">
+              <div class="form-group mt-16">
+                <label class="form-label">Remarks / Notes</label>
+                <textarea class="form-control" rows="3" [(ngModel)]="remarks" placeholder="Add review notes or rejection reason…"></textarea>
+              </div>
+
+              <div class="action-buttons">
+                <button *ngIf="selectedClaim.status==='SUBMITTED'" class="btn btn-ghost btn-block mb-8" (click)="markReview(selectedClaim.id)" [disabled]="actionLoading">
+                  <span *ngIf="actionLoading" class="loading-spinner" style="width:14px;height:14px;border-width:2px"></span>
+                  Mark Under Review
+                </button>
+                <button *ngIf="selectedClaim.status==='UNDER_REVIEW'" class="btn btn-primary btn-block mb-8" (click)="approve(selectedClaim.id)" [disabled]="actionLoading">
+                  <span *ngIf="actionLoading" class="loading-spinner" style="width:14px;height:14px;border-width:2px"></span>
+                  ✓ Approve Claim
+                </button>
+                <button *ngIf="selectedClaim.status==='SUBMITTED'||selectedClaim.status==='UNDER_REVIEW'" class="btn btn-danger btn-block" (click)="reject(selectedClaim.id)" [disabled]="actionLoading">
+                  ✗ Reject Claim
+                </button>
+              </div>
+            </ng-container>
+
+            <div class="resolved-box" *ngIf="selectedClaim.status==='APPROVED'||selectedClaim.status==='REJECTED'">
+              <div class="resolved-icon">{{ selectedClaim.status==='APPROVED' ? '✅' : '❌' }}</div>
+              <div>Claim has been {{ selectedClaim.status | lowercase }}.</div>
+              <div *ngIf="selectedClaim.remarks" class="text-muted mt-4" style="font-size:12px">Remarks: {{ selectedClaim.remarks }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

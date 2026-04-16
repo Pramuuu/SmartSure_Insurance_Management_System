@@ -15,16 +15,23 @@ public class ClaimDecisionListener {
 
     @RabbitListener(queues = RabbitMQConfig.CLAIM_DECISION_QUEUE)
     public void handleClaimDecision(ClaimDecisionEvent event) {
-        log.info("Received ClaimDecisionEvent — claimId={}, decision={}", event.getClaimId(), event.getDecision());
-        try {
-            emailService.sendClaimDecisionEmail(
-                    event.getCustomerEmail(),
-                    event.getCustomerName(),
-                    event.getClaimId(),
-                    event.getDecision()
-            );
-        } catch (Exception e) {
-            log.error("Failed to send decision email for claim {}: {}", event.getClaimId(), e.getMessage());
+        log.info("Received ClaimDecisionEvent — claimId={}, decision={}",
+                event.getClaimId(), event.getDecision());
+
+        if (event.getCustomerEmail() == null || event.getCustomerEmail().isBlank()) {
+            log.warn("No customer email for claimId={} — skipping email",
+                    event.getClaimId());
+            return;
         }
+
+        emailService.sendClaimDecisionEmail(
+                event.getCustomerEmail(),
+                event.getCustomerName(),
+                event.getClaimId(),
+                event.getDecision(),
+                event.getRemarks()             // ← ADD THIS
+        );
+
+        log.info("Decision email sent for claimId={}", event.getClaimId());
     }
 }

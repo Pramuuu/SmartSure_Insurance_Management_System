@@ -38,6 +38,7 @@
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
+
 		
 		<!-- Distributed Caching with Redis -->
 		<dependency>
@@ -89,7 +90,7 @@
 			<version>2.8.16</version>
 		</dependency>
 
-		<!-- Config Server — commented out, not used -->
+		<!-- Config Server â€” commented out, not used -->
 		<!--
 		<dependency>
 			<groupId>org.springframework.cloud</groupId>

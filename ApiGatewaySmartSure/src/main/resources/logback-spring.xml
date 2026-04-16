@@ -4,7 +4,8 @@
     <include resource="org/springframework/boot/logging/logback/defaults.xml" />
     <include resource="org/springframework/boot/logging/logback/console-appender.xml" />
 
-    <!-- Optional log file (safe path) -->
+    <!-- Resolve LOKI_URL env var with a safe fallback -->
+    <property name="LOKI_URL" value="http://localhost:3100/loki/api/v1/push" />
     <property name="LOG_FILE" value="/tmp/smartsure.log" />
 
     <!-- ========================================== -->
@@ -12,21 +13,18 @@
     <!-- ========================================== -->
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
         <http>
-            <url>http://localhost:3100/loki/api/v1/push</url>
+            <url>${LOKI_URL}</url>
         </http>
 
         <format>
             <label>
-                <!-- FIXED PATTERN -->
                 <pattern>app=smartsure,host=localhost,level=%level</pattern>
             </label>
-
             <message>
                 <pattern>
                     %d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg %X{traceId:-} %X{spanId:-}
                 </pattern>
             </message>
-
             <sortByTime>true</sortByTime>
         </format>
     </appender>
@@ -48,7 +46,6 @@
         <appender-ref ref="ASYNC_LOKI" />
     </root>
 
-    <!-- Reduce noisy logs -->
     <logger name="org.springframework.security" level="WARN"/>
     <logger name="org.springframework.web" level="WARN"/>
 

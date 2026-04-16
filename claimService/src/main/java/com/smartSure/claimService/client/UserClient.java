@@ -6,10 +6,9 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.smartSure.claimService.dto.UserResponseDto;
 
-@FeignClient(name = "authservice", path = "/user")
+@FeignClient(name = "authservice", path = "/user/internal")
 public interface UserClient {
 
-    // FeignClientInterceptor forwards X-Internal-Secret automatically
-    @GetMapping("/getInfo/{userId}")
+    @GetMapping("/{userId}/profile")
     UserResponseDto getUserById(@PathVariable("userId") Long userId);
 }

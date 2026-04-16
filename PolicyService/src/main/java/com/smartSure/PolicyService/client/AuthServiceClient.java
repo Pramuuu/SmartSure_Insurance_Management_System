@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
  * even when AuthService is temporarily unavailable.
  */
 @FeignClient(
-        name = "AUTHSERVICE",
+        name = "authservice",
         fallback = AuthServiceFallback.class
 )
 public interface AuthServiceClient {

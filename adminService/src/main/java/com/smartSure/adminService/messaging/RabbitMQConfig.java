@@ -26,14 +26,19 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue adminClaimAuditQueue() {
-        return QueueBuilder.durable(ADMIN_CLAIM_AUDIT_QUEUE).build();
+        return QueueBuilder.durable(ADMIN_CLAIM_AUDIT_QUEUE)
+                .withArgument("x-dead-letter-exchange", "smartsure.dlx")
+                .withArgument("x-dead-letter-routing-key", "dlq.admin.claim.audit")
+                .build();
     }
 
     @Bean
     public Queue adminPaymentAuditQueue() {
-        return QueueBuilder.durable(ADMIN_PAYMENT_AUDIT_QUEUE).build();
+        return QueueBuilder.durable(ADMIN_PAYMENT_AUDIT_QUEUE)
+                .withArgument("x-dead-letter-exchange", "smartsure.dlx")
+                .withArgument("x-dead-letter-routing-key", "dlq.admin.payment.audit")
+                .build();
     }
-
     @Bean
     public Binding adminClaimAuditBinding() {
         return BindingBuilder.bind(adminClaimAuditQueue()).to(exchange()).with(CLAIM_DECISION_KEY);

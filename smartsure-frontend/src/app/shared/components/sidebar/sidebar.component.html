@@ -1,0 +1,43 @@
+<aside class="sidebar">
+  <!-- Logo -->
+  <div class="logo">
+    <a class="logo-mark" routerLink="/">
+      <div class="logo-icon">S</div>
+      <div>
+        SmartSure
+        <div class="logo-sub">Insurance Platform</div>
+      </div>
+    </a>
+  </div>
+
+  <!-- Nav -->
+  <nav class="nav">
+    <div class="nav-section">
+      <div class="nav-label">{{ auth.isAdmin() ? 'Admin Panel' : 'Navigation' }}</div>
+      <a
+        *ngFor="let item of navItems"
+        class="nav-item"
+        [class.active]="isActive(item.route)"
+        [routerLink]="item.route"
+      >
+        <span class="nav-icon">{{ item.icon }}</span>
+        <span>{{ item.label }}</span>
+        <span *ngIf="item.badge !== undefined" class="nav-badge" [class]="item.badgeClass">
+          {{ item.badge }}
+        </span>
+      </a>
+    </div>
+  </nav>
+
+  <!-- Footer -->
+  <div class="sidebar-footer">
+    <div class="user-card">
+      <div class="user-avatar">{{ getUserInitials() }}</div>
+      <div class="user-info">
+        <div class="user-name">{{ currentUser?.firstName || currentUser?.email || 'User' }}</div>
+        <div class="user-role">{{ currentUser?.role || '—' }}</div>
+      </div>
+      <button class="logout-btn" (click)="logout()" title="Logout">⏻</button>
+    </div>
+  </div>
+</aside>

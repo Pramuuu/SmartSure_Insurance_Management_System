@@ -38,6 +38,12 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
             List<Policy.PolicyStatus> statuses
     );
 
+    Optional<Policy> findFirstByCustomerIdAndPolicyType_IdAndStatusIn(
+            Long customerId,
+            Long policyTypeId,
+            List<Policy.PolicyStatus> statuses
+    );
+
     // ================= EXPIRY / RENEWAL =================
 
     // Policies expiring soon (for reminders/notifications)

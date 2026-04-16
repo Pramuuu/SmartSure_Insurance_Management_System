@@ -11,12 +11,11 @@
     <appender name="LOKI" class="com.github.loki4j.logback.Loki4jAppender">
 
         <http>
-            <!-- Use localhost (works reliably on Windows) -->
             <url>http://localhost:3100/loki/api/v1/push</url>
         </http>
 
         <format>
-            <!-- ✅ FIXED: No invalid escaping -->
+            <!--  FIXED: No invalid escaping -->
             <label>
                 <pattern>app=${spring.application.name},host=localhost,level=%level</pattern>
             </label>

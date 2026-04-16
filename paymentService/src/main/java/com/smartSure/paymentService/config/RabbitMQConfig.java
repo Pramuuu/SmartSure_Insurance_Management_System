@@ -18,30 +18,54 @@ public class RabbitMQConfig {
     public static final String CLAIM_DECISION_KEY    = "claim.decision";
 
     // Queues
-    public static final String PAYMENT_COMPLETED_QUEUE = "payment.completed.queue";
-    public static final String CLAIM_PAYOUT_QUEUE      = "payment.claim.payout.queue";
+    public static final String CLAIM_PAYOUT_QUEUE = "payment.claim.payout.queue";
 
+    // DLQ
+    public static final String DLQ_EXCHANGE = "smartsure.dlx";
+    public static final String DLQ_QUEUE    = "smartsure.dlq";
+    public static final String DLQ_ROUTING_KEY = "dlq.claim.payout";
+
+    // =========================
+    // MAIN EXCHANGE
+    // =========================
     @Bean
     public TopicExchange exchange() {
         return new TopicExchange(EXCHANGE);
     }
 
+    // =========================
+    // DEAD LETTER EXCHANGE
+    // =========================
     @Bean
-    public Queue paymentCompletedQueue() {
-        return QueueBuilder.durable(PAYMENT_COMPLETED_QUEUE).build();
+    public TopicExchange deadLetterExchange() {
+        return new TopicExchange(DLQ_EXCHANGE, true, false);
+    }
+
+    // =========================
+    // DEAD LETTER QUEUE
+    // =========================
+    @Bean
+    public Queue deadLetterQueue() {
+        return QueueBuilder.durable(DLQ_QUEUE).build();
     }
 
     @Bean
-    public Binding paymentCompletedBinding() {
+    public Binding deadLetterBinding() {
         return BindingBuilder
-                .bind(paymentCompletedQueue())
-                .to(exchange())
-                .with(PAYMENT_COMPLETED_KEY);
+                .bind(deadLetterQueue())
+                .to(deadLetterExchange())
+                .with("#"); // catch all
     }
 
+    // =========================
+    // MAIN QUEUE (WITH DLQ)
+    // =========================
     @Bean
     public Queue claimPayoutQueue() {
-        return QueueBuilder.durable(CLAIM_PAYOUT_QUEUE).build();
+        return QueueBuilder.durable(CLAIM_PAYOUT_QUEUE)
+                .withArgument("x-dead-letter-exchange", DLQ_EXCHANGE)
+                .withArgument("x-dead-letter-routing-key", DLQ_ROUTING_KEY)
+                .build();
     }
 
     @Bean
@@ -52,11 +76,17 @@ public class RabbitMQConfig {
                 .with(CLAIM_DECISION_KEY);
     }
 
+    // =========================
+    // MESSAGE CONVERTER
+    // =========================
     @Bean
     public Jackson2JsonMessageConverter messageConverter() {
         return new Jackson2JsonMessageConverter();
     }
 
+    // =========================
+    // RABBIT TEMPLATE
+    // =========================
     @Bean
     public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);

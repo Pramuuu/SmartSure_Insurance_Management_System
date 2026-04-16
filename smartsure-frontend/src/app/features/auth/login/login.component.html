@@ -1,0 +1,85 @@
+<div class="auth-page">
+  <div class="auth-bg"></div>
+
+  <div class="auth-left">
+    <div class="brand">
+      <div class="brand-icon">S</div>
+      <div>
+        <div class="brand-name">SmartSure</div>
+        <div class="brand-tag">Insurance Management Platform</div>
+      </div>
+    </div>
+    <div class="hero-text">
+      <h1>Protect what<br><span>matters most.</span></h1>
+      <p>Enterprise-grade insurance management for modern businesses. Secure, scalable, and always available.</p>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="hs-val">₹48Cr+</div><div class="hs-lbl">Total Coverage</div></div>
+      <div class="hero-stat"><div class="hs-val">2,400+</div><div class="hs-lbl">Active Policies</div></div>
+      <div class="hero-stat"><div class="hs-val">99.9%</div><div class="hs-lbl">Uptime SLA</div></div>
+    </div>
+  </div>
+
+  <div class="auth-right">
+    <div class="auth-card">
+      <div class="auth-card-header">
+        <h2>Sign in</h2>
+        <p>Access your SmartSure account</p>
+      </div>
+
+      <form (ngSubmit)="submit()" #loginForm="ngForm">
+        <div class="form-group">
+          <label class="form-label">Email address</label>
+          <input
+            type="email" class="form-control"
+            [(ngModel)]="email" name="email"
+            placeholder="you@company.com"
+            autocomplete="email"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <div class="password-wrap">
+            <input
+              [type]="showPassword ? 'text' : 'password'"
+              class="form-control"
+              [(ngModel)]="password" name="password"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              required
+            />
+            <button type="button" class="show-pwd" (click)="showPassword = !showPassword">
+              {{ showPassword ? '🙈' : '👁️' }}
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg" [disabled]="loading">
+          <span *ngIf="loading" class="loading-spinner" style="width:16px;height:16px;border-width:2px"></span>
+          <span>{{ loading ? 'Signing in…' : 'Sign in' }}</span>
+        </button>
+      </form>
+
+      <div class="auth-divider"><span>or</span></div>
+
+      <div class="auth-footer">
+        Don't have an account?
+        <a routerLink="/auth/register">Create account →</a>
+      </div>
+
+      <div class="demo-creds">
+        <div class="demo-title">Demo Credentials</div>
+        <div class="demo-row" (click)="email='customer@demo.com'; password='password123'">
+          <span class="badge badge-active">CUSTOMER</span>
+          <span>customer@demo.com / password123</span>
+        </div>
+        <div class="demo-row" (click)="email='admin@demo.com'; password='admin123'">
+          <span class="badge badge-created">ADMIN</span>
+          <span>admin@demo.com / admin123</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

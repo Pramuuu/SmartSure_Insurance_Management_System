@@ -1,0 +1,97 @@
+<div class="page">
+  <header class="topbar">
+    <div>
+      <h1 class="page-title">Admin Dashboard</h1>
+      <p class="page-sub">Platform overview and metrics</p>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm" (click)="ngOnInit()">↺ Refresh</button>
+      <button class="btn btn-primary btn-sm" routerLink="/admin/claims">Review Claims →</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <app-loading *ngIf="loading"></app-loading>
+
+    <ng-container *ngIf="!loading && metrics">
+      <!-- Metrics -->
+      <div class="stats-grid">
+        <div class="stat-card teal fade-up">
+          <div class="stat-header"><div class="stat-icon teal">👥</div><div class="stat-trend up">Users</div></div>
+          <div class="stat-value">{{ metrics.totalUsers }}</div>
+          <div class="stat-label">Total Users</div>
+          <div class="stat-sub">Registered accounts</div>
+        </div>
+        <div class="stat-card blue fade-up">
+          <div class="stat-header"><div class="stat-icon blue">🛡️</div></div>
+          <div class="stat-value">{{ metrics.totalPolicies }}</div>
+          <div class="stat-label">Total Policies</div>
+          <div class="stat-sub">All policy records</div>
+        </div>
+        <div class="stat-card amber fade-up">
+          <div class="stat-header"><div class="stat-icon amber">📋</div><div class="stat-trend down">{{ metrics.pendingClaims }} pending</div></div>
+          <div class="stat-value">{{ metrics.totalClaims }}</div>
+          <div class="stat-label">Total Claims</div>
+          <div class="stat-sub">{{ metrics.pendingClaims }} awaiting review</div>
+        </div>
+        <div class="stat-card red fade-up">
+          <div class="stat-header"><div class="stat-icon red">⚠️</div><div class="stat-trend down">Action needed</div></div>
+          <div class="stat-value">{{ metrics.pendingClaims }}</div>
+          <div class="stat-label">Pending Claims</div>
+          <div class="stat-sub">Require admin action</div>
+        </div>
+      </div>
+
+      <!-- Quick nav cards -->
+      <div class="admin-quick mb-24">
+        <div class="aq-card" routerLink="/admin/claims">
+          <div class="aq-icon amber">📋</div>
+          <div>
+            <div class="aq-title">Claim Management</div>
+            <div class="aq-sub">Review, approve, or reject claims</div>
+          </div>
+          <span class="aq-arrow">→</span>
+        </div>
+        <div class="aq-card" routerLink="/admin/policies">
+          <div class="aq-icon blue">🛡️</div>
+          <div>
+            <div class="aq-title">Policy Management</div>
+            <div class="aq-sub">View all customer policies</div>
+          </div>
+          <span class="aq-arrow">→</span>
+        </div>
+        <div class="aq-card" routerLink="/admin/audit-logs">
+          <div class="aq-icon purple">≡</div>
+          <div>
+            <div class="aq-title">Audit Logs</div>
+            <div class="aq-sub">Full activity history</div>
+          </div>
+          <span class="aq-arrow">→</span>
+        </div>
+      </div>
+
+      <!-- Recent activity -->
+      <div class="card fade-up">
+        <div class="card-header">
+          <div><div class="card-title">Recent Activity</div><div class="card-sub">Latest admin actions and system events</div></div>
+          <div class="card-actions"><button class="btn btn-ghost btn-sm" routerLink="/admin/audit-logs">Full logs →</button></div>
+        </div>
+        <div class="empty-state" style="padding:40px" *ngIf="recentLogs.length===0">
+          <div class="empty-icon">≡</div>
+          <h3>No recent activity</h3>
+          <p>Admin actions will appear here.</p>
+        </div>
+        <div *ngIf="recentLogs.length>0">
+          <div class="log-entry" *ngFor="let log of recentLogs">
+            <div class="log-entity-badge">{{ log.entityType }}</div>
+            <div class="log-detail">
+              <div class="log-action">{{ log.action }}</div>
+              <div class="log-meta text-muted">Entity #{{ log.entityId }} · Admin #{{ log.performedBy }}</div>
+            </div>
+            <div class="log-time text-muted">{{ log.createdAt | date:'dd MMM, hh:mm a' }}</div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+</div>

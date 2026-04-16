@@ -28,23 +28,37 @@ public class SecurityConfig {
 	@Bean
 	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception{
 		http.csrf(csrf -> csrf.disable())
+		.cors(cors -> cors.configurationSource(corsConfigurationSource()))
 		.httpBasic(httpBasic -> httpBasic.disable()) 
         .formLogin(form -> form.disable()) 
 		.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 		.authorizeHttpRequests(auth -> auth 
 				.requestMatchers(
-                        "/api/auth/**",
-                        "/swagger-ui/**",
-                        "/v3/api-docs/**",
-                        "/swagger-ui.html",
-                        "/actuator/health"
+                        "/api/auth/register",
+                        "/api/auth/login",
+                        "/api/auth/verify-otp"
                 ).permitAll()
+				.requestMatchers("/api/auth/admin/**").hasRole("ADMIN")
 				.requestMatchers("/actuator/**").permitAll()   //just for testing, will change later
 		        .anyRequest().permitAll())
 		.addFilterBefore(internalRequestFilter, UsernamePasswordAuthenticationFilter.class)
 		.addFilterAfter(headerAuthenticationFilter, InternalRequestFilter.class);
 		
 		return http.build();
+	}
+
+	@Bean
+	public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+		org.springframework.web.cors.CorsConfiguration config = new org.springframework.web.cors.CorsConfiguration();
+		config.setAllowedOrigins(java.util.List.of("http://localhost:3000", "http://localhost:4200"));
+		config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+		config.setAllowedHeaders(java.util.List.of("*"));
+		config.setAllowCredentials(true);
+		config.setMaxAge(3600L);
+
+		org.springframework.web.cors.UrlBasedCorsConfigurationSource source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/**", config);
+		return source;
 	}
 	
 	@Bean

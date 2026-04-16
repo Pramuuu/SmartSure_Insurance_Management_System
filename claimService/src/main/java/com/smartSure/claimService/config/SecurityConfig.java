@@ -38,7 +38,7 @@ public class SecurityConfig {
                         // Allow Prometheus scraping without authentication
                         "/actuator/**"
                 ).permitAll()
-		        .anyRequest().permitAll())
+		        .anyRequest().authenticated())
 		.addFilterBefore(internalRequestFilter, UsernamePasswordAuthenticationFilter.class)
 		.addFilterAfter(headerAuthenticationFilter, InternalRequestFilter.class);
 		

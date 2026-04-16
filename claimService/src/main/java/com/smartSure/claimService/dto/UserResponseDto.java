@@ -10,11 +10,8 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 public class UserResponseDto {
-    private Long userId;
-    private String firstName;
-    private String lastName;
+    private Long id;          // InternalAuthController returns 'id' not 'userId'
+    private String name;      // returns full name as single 'name' field
     private String email;
-    // REMOVED: private String password;  -- security vulnerability
     private String phone;
-    private String role;
 }

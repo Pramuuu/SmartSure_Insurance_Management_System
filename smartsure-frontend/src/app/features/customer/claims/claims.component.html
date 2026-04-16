@@ -1,0 +1,145 @@
+<div class="page">
+  <header class="topbar">
+    <div>
+      <h1 class="page-title">My Claims</h1>
+      <p class="page-sub">Submit and track insurance claims</p>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm" *ngIf="claimStep==='list'" (click)="loadClaims()">↺ Refresh</button>
+      <button class="btn btn-primary btn-sm" *ngIf="claimStep==='list'" (click)="startClaim()">＋ New Claim</button>
+      <button class="btn btn-ghost btn-sm" *ngIf="claimStep!=='list'" (click)="claimStep='list'">← Back to Claims</button>
+    </div>
+  </header>
+
+  <div class="content">
+
+    <!-- Claims list -->
+    <ng-container *ngIf="claimStep==='list'">
+      <app-loading *ngIf="loading"></app-loading>
+      <div *ngIf="!loading">
+        <div class="empty-state" *ngIf="claims.length===0">
+          <div class="empty-icon">📋</div>
+          <h3>No claims yet</h3>
+          <p>Submit a claim against one of your active policies.</p>
+          <button class="btn btn-primary mt-16" (click)="startClaim()">File a Claim</button>
+        </div>
+
+        <div class="claims-grid" *ngIf="claims.length>0">
+          <div class="claim-card card fade-up" *ngFor="let c of claims">
+            <div class="claim-card-header">
+              <div>
+                <div class="claim-num">{{ c.claimNumber }}</div>
+                <div class="claim-date text-muted">Incident: {{ c.incidentDate | date:'dd MMM yyyy' }}</div>
+              </div>
+              <span class="badge" [class]="getBadge(c.status)">{{ c.status | titlecase }}</span>
+            </div>
+            <div class="claim-desc">{{ c.description }}</div>
+            <div class="claim-footer">
+              <div class="claim-amount">₹{{ c.claimAmount?.toLocaleString('en-IN') }}</div>
+              <div class="claim-remarks text-muted" *ngIf="c.remarks">{{ c.remarks }}</div>
+            </div>
+            <div class="claim-progress">
+              <div class="progress-steps">
+                <div class="ps" [class.done]="['SUBMITTED','UNDER_REVIEW','APPROVED','REJECTED'].includes(c.status)" [class.active]="c.status==='DRAFT'">Draft</div>
+                <div class="ps-line"></div>
+                <div class="ps" [class.done]="['UNDER_REVIEW','APPROVED','REJECTED'].includes(c.status)" [class.active]="c.status==='SUBMITTED'">Submitted</div>
+                <div class="ps-line"></div>
+                <div class="ps" [class.done]="['APPROVED','REJECTED'].includes(c.status)" [class.active]="c.status==='UNDER_REVIEW'">Review</div>
+                <div class="ps-line"></div>
+                <div class="ps" [class.approved]="c.status==='APPROVED'" [class.rejected]="c.status==='REJECTED'" [class.active]="c.status==='APPROVED'||c.status==='REJECTED'">{{ c.status==='REJECTED' ? 'Rejected' : 'Resolved' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+
+    <!-- Step: Create -->
+    <div *ngIf="claimStep==='create'" class="wizard-layout">
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">New Claim</div><div class="card-sub">Step 1 of 3 — Claim details</div></div>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Policy *</label>
+            <select class="form-control" [(ngModel)]="newClaim.policyId">
+              <option value="">Select a policy</option>
+              <option *ngFor="let p of policies" [value]="p.id">{{ p.policyNumber }} — {{ p.policyTypeName }}</option>
+            </select>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Claim Amount (₹) *</label>
+              <input type="number" class="form-control" [(ngModel)]="newClaim.claimAmount" placeholder="Enter amount" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Incident Date *</label>
+              <input type="date" class="form-control" [(ngModel)]="newClaim.incidentDate" />
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Description *</label>
+            <textarea class="form-control" rows="4" [(ngModel)]="newClaim.description" placeholder="Describe what happened in detail…"></textarea>
+          </div>
+          <button class="btn btn-primary btn-block btn-lg" (click)="createClaim()" [disabled]="createLoading">
+            <span *ngIf="createLoading" class="loading-spinner" style="width:16px;height:16px;border-width:2px"></span>
+            {{ createLoading ? 'Creating…' : 'Create Claim Draft →' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step: Upload -->
+    <div *ngIf="claimStep==='upload'" class="wizard-layout">
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Upload Documents</div><div class="card-sub">Step 2 of 3 — Attach supporting files</div></div>
+        </div>
+        <div class="card-body">
+          <div class="claim-ref mb-16">
+            <span class="text-mono text-accent">{{ createdClaim?.claimNumber }}</span>
+            <span class="badge badge-draft ml-8">{{ createdClaim?.status }}</span>
+          </div>
+
+          <div class="upload-zone" (click)="evidenceInput.click()">
+            <input #evidenceInput type="file" style="display:none" (change)="onFileChange($event,'evidence')" accept="image/*,.pdf" />
+            <div class="upload-icon">📎</div>
+            <div class="upload-label">{{ selectedEvidence?.name || 'Upload Evidence (photos, reports)' }}</div>
+            <div class="upload-hint">Click to browse or drag and drop · PDF, JPG, PNG</div>
+          </div>
+
+          <div class="upload-actions mt-16">
+            <button class="btn btn-ghost" (click)="uploadEvidence()" [disabled]="!selectedEvidence||uploadLoading">
+              <span *ngIf="uploadLoading" class="loading-spinner" style="width:14px;height:14px;border-width:2px"></span>
+              {{ uploadLoading ? 'Uploading…' : '↑ Upload Evidence' }}
+            </button>
+          </div>
+
+          <div class="divider"></div>
+
+          <button class="btn btn-primary btn-block btn-lg" (click)="submitClaim()" [disabled]="submitLoading">
+            <span *ngIf="submitLoading" class="loading-spinner" style="width:16px;height:16px;border-width:2px"></span>
+            {{ submitLoading ? 'Submitting…' : 'Submit Claim →' }}
+          </button>
+          <p class="form-hint text-center">You can also skip document upload and submit now.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step: Done -->
+    <div *ngIf="claimStep==='done'" class="success-layout">
+      <div class="success-card">
+        <div class="success-icon">🎉</div>
+        <h2>Claim Submitted!</h2>
+        <p>Your claim has been submitted and is under review. We'll notify you of any updates.</p>
+        <div class="success-ref">{{ createdClaim?.claimNumber }}</div>
+        <div class="success-actions">
+          <button class="btn btn-primary btn-lg" (click)="claimStep='list'; loadClaims()">View All Claims</button>
+          <button class="btn btn-ghost" routerLink="/customer/dashboard">Dashboard</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,150 @@
+<div class="page">
+  <!-- Topbar -->
+  <header class="topbar">
+    <div>
+      <h1 class="page-title">Good day, {{ userName }} 👋</h1>
+      <p class="page-sub">Here's your insurance overview</p>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm" (click)="ngOnInit()">↺ Refresh</button>
+      <button class="btn btn-primary btn-sm" routerLink="/customer/purchase">＋ Buy Policy</button>
+    </div>
+  </header>
+
+  <div class="content">
+    <!-- Stats -->
+    <div class="stats-grid">
+      <div class="stat-card teal fade-up">
+        <div class="stat-header">
+          <div class="stat-icon teal">🛡️</div>
+          <div class="stat-trend up">Active</div>
+        </div>
+        <div class="stat-value">{{ activePolicies.length }}</div>
+        <div class="stat-label">Active Policies</div>
+        <div class="stat-sub">out of {{ policies.length }} total</div>
+      </div>
+      <div class="stat-card blue fade-up">
+        <div class="stat-header"><div class="stat-icon blue">💰</div></div>
+        <div class="stat-value">{{ formatAmount(totalCoverage) }}</div>
+        <div class="stat-label">Total Coverage</div>
+        <div class="stat-sub">across all active policies</div>
+      </div>
+      <div class="stat-card purple fade-up">
+        <div class="stat-header"><div class="stat-icon purple">📋</div></div>
+        <div class="stat-value">{{ claims.length }}</div>
+        <div class="stat-label">Total Claims</div>
+        <div class="stat-sub">{{ pendingClaims }} under review</div>
+      </div>
+      <div class="stat-card amber fade-up">
+        <div class="stat-header"><div class="stat-icon amber">🔔</div></div>
+        <div class="stat-value">{{ pendingClaims }}</div>
+        <div class="stat-label">Pending Claims</div>
+        <div class="stat-sub">awaiting resolution</div>
+      </div>
+    </div>
+
+    <div class="panel-grid">
+      <!-- Policies table -->
+      <div class="card fade-up">
+        <div class="card-header">
+          <div>
+            <div class="card-title">My Policies</div>
+            <div class="card-sub">Recent active policies</div>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-ghost btn-sm" routerLink="/customer/policies">View all →</button>
+          </div>
+        </div>
+
+        <app-loading *ngIf="loading"></app-loading>
+
+        <div class="table-wrap" *ngIf="!loading">
+          <div class="empty-state" *ngIf="policies.length === 0">
+            <div class="empty-icon">🛡️</div>
+            <h3>No policies yet</h3>
+            <p>Purchase your first insurance policy to get started.</p>
+            <button class="btn btn-primary mt-16" routerLink="/customer/purchase">Browse Plans</button>
+          </div>
+          <table *ngIf="policies.length > 0">
+            <thead>
+              <tr>
+                <th>Policy No.</th>
+                <th>Type</th>
+                <th>Coverage</th>
+                <th>Premium</th>
+                <th>Renews</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let p of activePolicies" routerLink="/customer/policies">
+                <td class="cell-mono">{{ p.policyNumber }}</td>
+                <td class="cell-name">{{ p.policyTypeName || '—' }}</td>
+                <td class="cell-amount text-accent">{{ formatAmount(p.coverageAmount) }}</td>
+                <td class="cell-amount">₹{{ p.premiumAmount?.toLocaleString('en-IN') }}</td>
+                <td style="color:var(--muted)">{{ p.endDate | date:'dd MMM yyyy' }}</td>
+                <td><span class="badge" [class]="getBadgeClass(p.status)">{{ p.status }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Recent claims -->
+      <div class="card fade-up">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Recent Claims</div>
+            <div class="card-sub">Track your claim status</div>
+          </div>
+          <div class="card-actions">
+            <button class="btn btn-ghost btn-sm" routerLink="/customer/claims">View all →</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="empty-state" style="padding:30px 0" *ngIf="claims.length === 0">
+            <div class="empty-icon">📋</div>
+            <h3>No claims</h3>
+            <p>You have no claims submitted.</p>
+          </div>
+          <div class="claim-list" *ngIf="claims.length > 0">
+            <div class="claim-item" *ngFor="let c of claims.slice(0,4)" routerLink="/customer/claims">
+              <div class="claim-left">
+                <div class="claim-num">{{ c.claimNumber }}</div>
+                <div class="claim-desc">{{ c.description | slice:0:50 }}{{ (c.description || '').length > 50 ? '…' : '' }}</div>
+              </div>
+              <div class="claim-right">
+                <div class="claim-amt">₹{{ c.claimAmount?.toLocaleString('en-IN') }}</div>
+                <span class="badge" [class]="getClaimBadge(c.status)">{{ c.status }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Quick actions -->
+    <div class="quick-actions fade-up">
+      <div class="qa-card" routerLink="/customer/purchase">
+        <div class="qa-icon teal">🛡️</div>
+        <div class="qa-label">Buy Insurance</div>
+        <div class="qa-sub">Browse all plans</div>
+      </div>
+      <div class="qa-card" routerLink="/customer/claims">
+        <div class="qa-icon blue">📋</div>
+        <div class="qa-label">File a Claim</div>
+        <div class="qa-sub">Submit new claim</div>
+      </div>
+      <div class="qa-card" routerLink="/customer/payments">
+        <div class="qa-icon amber">💳</div>
+        <div class="qa-label">Payments</div>
+        <div class="qa-sub">View payment history</div>
+      </div>
+      <div class="qa-card" routerLink="/customer/policies">
+        <div class="qa-icon purple">📄</div>
+        <div class="qa-label">My Policies</div>
+        <div class="qa-sub">Manage policies</div>
+      </div>
+    </div>
+  </div>
+</div>

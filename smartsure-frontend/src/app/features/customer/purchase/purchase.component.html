@@ -1,0 +1,231 @@
+<div class="page">
+  <header class="topbar">
+    <div>
+      <h1 class="page-title">Buy Insurance</h1>
+      <p class="page-sub">{{ selectedType ? selectedType.name : 'Browse and purchase insurance plans' }}</p>
+    </div>
+  </header>
+
+  <!-- Step progress -->
+  <div class="step-bar">
+    <div class="step-inner">
+      <ng-container *ngFor="let s of steps; let i=index; let last=last">
+        <div class="step-item" [class.active]="s.key===step" [class.done]="currentStepIndex()>i">
+          <div class="step-num">
+            <span *ngIf="currentStepIndex()<=i">{{ i+1 }}</span>
+            <span *ngIf="currentStepIndex()>i">✓</span>
+          </div>
+          <span class="step-label">{{ s.label }}</span>
+        </div>
+        <div class="step-line" *ngIf="!last" [class.done]="currentStepIndex()>i"></div>
+      </ng-container>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ══ STEP 1: Catalog ══ -->
+    <div *ngIf="step==='catalog'">
+      <div class="filter-row mb-24">
+        <button *ngFor="let c of categories" class="chip" [class.active]="filterCategory===c" (click)="filterCategory=c">
+          {{ categoryIcons[c] || '' }} {{ c }}
+        </button>
+      </div>
+      <div class="catalog-grid">
+        <div class="product-card fade-up" *ngFor="let t of filteredTypes" (click)="selectType(t)">
+          <div class="prod-cat" [class]="'cat-'+t.category?.toLowerCase()">
+            {{ categoryIcons[t.category] || '🛡️' }} {{ t.category }}
+          </div>
+          <div class="prod-name">{{ t.name }}</div>
+          <div class="prod-stats">
+            <div>
+              <div class="pstat-label">Base Premium</div>
+              <div class="pstat-val text-accent">₹{{ t.basePremium?.toLocaleString('en-IN') || '—' }}</div>
+            </div>
+            <div>
+              <div class="pstat-label">Max Coverage</div>
+              <div class="pstat-val">{{ formatAmt(t.maxCoverageAmount || 0) }}</div>
+            </div>
+          </div>
+          <div class="prod-footer">
+            <span class="prod-term">{{ t.termInMonths || 12 }} months · Age {{ t.minAge||18 }}–{{ t.maxAge||65 }}</span>
+            <button class="btn btn-primary btn-sm">Buy Now →</button>
+          </div>
+        </div>
+      </div>
+      <div class="empty-state" *ngIf="filteredTypes.length===0">
+        <div class="empty-icon">🛡️</div>
+        <h3>No plans found</h3>
+        <p>No insurance plans in this category right now.</p>
+      </div>
+    </div>
+
+    <!-- ══ STEP 2: Quote ══ -->
+    <div *ngIf="step==='quote'" class="quote-layout">
+      <div class="calc-panel card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Premium Calculator</div>
+            <div class="card-sub">{{ selectedType?.name }}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" (click)="step='catalog'">← Back</button>
+        </div>
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Coverage Amount</label>
+            <input type="range" class="range-input" [(ngModel)]="coverageAmount" min="100000" max="5000000" step="50000" (input)="quoteResult=null" />
+            <div class="range-labels">
+              <span>₹1L</span>
+              <span class="text-accent fw-600">{{ formatAmt(coverageAmount) }}</span>
+              <span>₹50L</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Your Age</label>
+            <input type="range" class="range-input" [(ngModel)]="customerAge" min="18" max="70" (input)="quoteResult=null" />
+            <div class="range-labels"><span>18</span><span class="text-accent fw-600">{{ customerAge }} yrs</span><span>70</span></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Payment Frequency</label>
+            <select class="form-control" [(ngModel)]="paymentFrequency" (change)="quoteResult=null">
+              <option value="MONTHLY">Monthly (+ 5% loading)</option>
+              <option value="QUARTERLY">Quarterly (+ 3% loading)</option>
+              <option value="SEMI_ANNUAL">Semi-Annual (+ 1% loading)</option>
+              <option value="ANNUAL">Annual (best price)</option>
+            </select>
+          </div>
+
+          <button class="btn btn-primary btn-block" (click)="calculateQuote()" [disabled]="quoteLoading">
+            <span *ngIf="quoteLoading" class="loading-spinner" style="width:14px;height:14px;border-width:2px"></span>
+            {{ quoteLoading ? 'Calculating…' : 'Calculate Premium' }}
+          </button>
+
+          <div class="quote-result" *ngIf="quoteResult">
+            <div class="qr-label">Your Premium</div>
+            <div class="qr-amount">₹{{ quoteResult.premiumPerPeriod?.toLocaleString('en-IN') }}</div>
+            <div class="qr-period">per {{ freqLabel() }}</div>
+            <div class="qr-breakdown">
+              <div class="qr-row"><span>Annual total</span><span class="text-accent text-mono">₹{{ quoteResult.annualPremium?.toLocaleString('en-IN') }}</span></div>
+              <div class="qr-row" *ngIf="quoteResult.coverageFactor"><span>Coverage factor</span><span class="text-mono">× {{ quoteResult.coverageFactor?.toFixed(2) }}</span></div>
+              <div class="qr-row" *ngIf="quoteResult.ageFactor"><span>Age factor</span><span class="text-mono">× {{ quoteResult.ageFactor?.toFixed(2) }}</span></div>
+            </div>
+            <button class="btn btn-primary btn-block mt-16" (click)="proceedToDetails()">Continue to Details →</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Age factor table -->
+      <div class="side-card card">
+        <div class="card-header"><div class="card-title">Age Risk Factors</div></div>
+        <table>
+          <thead><tr><th>Age</th><th>Factor</th><th>Risk</th></tr></thead>
+          <tbody>
+            <tr [class.highlight]="customerAge<25"><td>&lt; 25</td><td class="text-accent">0.85×</td><td style="color:var(--muted)">Lower</td></tr>
+            <tr [class.highlight]="customerAge>=25&&customerAge<35"><td>25–34</td><td>1.00×</td><td style="color:var(--muted)">Base</td></tr>
+            <tr [class.highlight]="customerAge>=35&&customerAge<45"><td>35–44</td><td>1.20×</td><td style="color:var(--muted)">Moderate</td></tr>
+            <tr [class.highlight]="customerAge>=45&&customerAge<55"><td>45–54</td><td class="text-accent4">1.50×</td><td style="color:var(--muted)">Elevated</td></tr>
+            <tr [class.highlight]="customerAge>=55&&customerAge<65"><td>55–64</td><td class="text-accent3">1.90×</td><td style="color:var(--muted)">High</td></tr>
+            <tr [class.highlight]="customerAge>=65"><td>65+</td><td class="text-accent3">2.50×</td><td style="color:var(--muted)">Highest</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ STEP 3: Details ══ -->
+    <div *ngIf="step==='details'" class="details-layout">
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Policy Details</div><div class="card-sub">Complete your application</div></div>
+          <button class="btn btn-ghost btn-sm" (click)="step='quote'">← Back</button>
+        </div>
+        <div class="card-body">
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Start Date *</label>
+              <input type="date" class="form-control" [(ngModel)]="startDate" [min]="startDate" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Payment Frequency</label>
+              <input type="text" class="form-control" [value]="paymentFrequency" readonly style="opacity:0.6" />
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="form-group">
+              <label class="form-label">Nominee Name</label>
+              <input type="text" class="form-control" [(ngModel)]="nomineeName" placeholder="e.g. Priya Sharma" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Nominee Relation</label>
+              <select class="form-control" [(ngModel)]="nomineeRelation">
+                <option value="">Select relation</option>
+                <option>Spouse</option><option>Parent</option><option>Child</option><option>Sibling</option><option>Other</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary btn-block btn-lg mt-8" (click)="purchasePolicy()" [disabled]="loading">
+            <span *ngIf="loading" class="loading-spinner" style="width:16px;height:16px;border-width:2px"></span>
+            {{ loading ? 'Processing…' : 'Proceed to Payment →' }}
+          </button>
+        </div>
+      </div>
+
+      <!-- Summary -->
+      <div class="summary-card card">
+        <div class="card-header"><div class="card-title">Order Summary</div></div>
+        <div class="card-body">
+          <div class="sum-row"><span>Plan</span><span class="fw-700">{{ selectedType?.name }}</span></div>
+          <div class="sum-row"><span>Coverage</span><span>{{ formatAmt(coverageAmount) }}</span></div>
+          <div class="sum-row"><span>Frequency</span><span>{{ paymentFrequency }}</span></div>
+          <div class="sum-row"><span>Age</span><span>{{ customerAge }} yrs</span></div>
+          <div class="divider"></div>
+          <div class="sum-row total">
+            <span>Premium</span>
+            <span class="text-accent">₹{{ quoteResult?.premiumPerPeriod?.toLocaleString('en-IN') }} / {{ freqLabel() }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ STEP 4: Payment ══ -->
+    <div *ngIf="step==='payment'" class="payment-layout">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Complete Payment</div></div>
+        <div class="card-body payment-body">
+          <div class="payment-icon">💳</div>
+          <h2>₹{{ paymentResult?.amount?.toLocaleString('en-IN') }}</h2>
+          <p class="payment-sub">First premium for {{ selectedType?.name }}</p>
+          <div class="payment-ref" *ngIf="paymentResult?.razorpayOrderId">
+            <span class="text-mono text-muted" style="font-size:11px">Order: {{ paymentResult?.razorpayOrderId }}</span>
+          </div>
+          <div class="payment-methods">
+            <div class="pay-method active">UPI</div>
+            <div class="pay-method">Net Banking</div>
+            <div class="pay-method">Card</div>
+          </div>
+          <button class="btn btn-primary btn-lg" style="width:280px" (click)="confirmPayment()" [disabled]="loading">
+            <span *ngIf="loading" class="loading-spinner" style="width:16px;height:16px;border-width:2px"></span>
+            {{ loading ? 'Processing…' : 'Pay Now' }}
+          </button>
+          <p style="font-size:11px;color:var(--dim);margin-top:12px">🔒 Secured by Razorpay · 256-bit SSL encryption</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ STEP 5: Success ══ -->
+    <div *ngIf="step==='success'" class="success-layout">
+      <div class="success-card">
+        <div class="success-icon">✅</div>
+        <h2>Policy Activated!</h2>
+        <p>Your {{ selectedType?.name }} policy is now active. Policy number has been sent to your email.</p>
+        <div class="success-policy" *ngIf="purchasedPolicy">
+          <span class="text-mono">{{ purchasedPolicy.policyNumber }}</span>
+        </div>
+        <div class="success-actions">
+          <button class="btn btn-primary btn-lg" routerLink="/customer/policies">View My Policies</button>
+          <button class="btn btn-ghost" routerLink="/customer/dashboard">Go to Dashboard</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>

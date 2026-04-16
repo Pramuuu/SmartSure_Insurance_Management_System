@@ -1,0 +1,54 @@
+name: Backend CI - Microservices Build & Test
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  build-and-test:
+    name: Test ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    
+    # The Matrix Strategy allows GitHub to build ALL of your microservices at the exact 
+    # same time across 5 different cloud servers, cutting build time by 80%!
+    strategy:
+      fail-fast: false
+      matrix:
+        service: 
+          - AuthService
+          - PolicyService
+          - claimService
+          - paymentService
+          - adminService
+
+    steps:
+    - name: Checkout Source Code
+      uses: actions/checkout@v4
+    
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: maven
+        
+    - name: Make Maven Wrapper Executable
+      run: |
+        cd ${{ matrix.service }}
+        chmod +x mvnw
+        
+    - name: Run Maven Build & Unit Tests
+      run: |
+        cd ${{ matrix.service }}
+        ./mvnw clean verify
+        
+      # NOTE: Once you connect SonarCloud to your GitHub, you can uncomment this step!
+      # - name: Push to SonarCloud
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      #   run: |
+      #     cd ${{ matrix.service }}
+      #     ./mvnw sonar:sonar -Dsonar.projectKey=${{ matrix.service }} -Dsonar.host.url=https://sonarcloud.io

@@ -6,6 +6,7 @@ import com.smartSure.PolicyService.entity.PolicyType;
 import com.smartSure.PolicyService.exception.PolicyTypeNotFoundException;
 import com.smartSure.PolicyService.mapper.PolicyTypeMapper;
 import com.smartSure.PolicyService.repository.PolicyTypeRepository;
+import com.smartSure.PolicyService.service.impl.PolicyTypeServiceImpl;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -27,7 +28,7 @@ class PolicyTypeServiceTest {
     @Mock private PolicyTypeMapper     policyTypeMapper;
 
     @InjectMocks
-    private PolicyTypeService policyTypeService;
+    private PolicyTypeServiceImpl policyTypeService;
 
     private PolicyType     activePolicyType;
     private PolicyTypeResponse policyTypeResponse;

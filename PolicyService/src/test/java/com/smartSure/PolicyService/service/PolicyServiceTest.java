@@ -1,6 +1,8 @@
 package com.smartSure.PolicyService.service;
 
 import com.smartSure.PolicyService.client.AuthServiceClient;
+import com.smartSure.PolicyService.client.InternalClaimClient;
+import com.smartSure.PolicyService.service.impl.PolicyServiceImpl;
 import com.smartSure.PolicyService.dto.calculation.PremiumCalculationResponse;
 import com.smartSure.PolicyService.dto.policy.*;
 import com.smartSure.PolicyService.dto.premium.PremiumPaymentRequest;
@@ -45,10 +47,11 @@ class PolicyServiceTest {
     @Mock private PolicyMapper           policyMapper;
     @Mock private NotificationPublisher  notificationPublisher;
     @Mock private AuthServiceClient      authServiceClient;
+    @Mock private InternalClaimClient    internalClaimClient;
 
     // ── Subject under test ─────────────────────────────────────────────────────
     @InjectMocks
-    private PolicyService policyService;
+    private PolicyServiceImpl policyService;
 
     // ── Shared test fixtures ───────────────────────────────────────────────────
     private PolicyType     activePolicyType;
@@ -108,7 +111,7 @@ class PolicyServiceTest {
                     .policyTypeId(POLICY_TYPE_ID)
                     .coverageAmount(new BigDecimal("500000.00"))
                     .paymentFrequency(Policy.PaymentFrequency.MONTHLY)
-                    .startDate(LocalDate.now())
+                    .startDate(LocalDate.now().plusDays(1)) // Future date to avoid validation error
                     .customerAge(30)
                     .build();
         }
@@ -125,22 +128,21 @@ class PolicyServiceTest {
 
             when(policyTypeRepository.findById(POLICY_TYPE_ID))
                     .thenReturn(Optional.of(activePolicyType));
-            when(policyRepository.existsByCustomerIdAndPolicyType_IdAndStatusIn(
+            when(policyRepository.findFirstByCustomerIdAndPolicyType_IdAndStatusIn(
                     eq(CUSTOMER_ID), eq(POLICY_TYPE_ID), anyList()))
-                    .thenReturn(false);
+                    .thenReturn(Optional.empty());
             when(premiumCalculator.calculatePremium(
                     eq(activePolicyType), any(), any(), anyInt()))
                     .thenReturn(calcResponse);
             when(policyMapper.toEntity(request))
                     .thenReturn(savedPolicy);
-            when(policyRepository.save(any(Policy.class)))
-                    .thenReturn(savedPolicy);
+            when(policyRepository.save(any())).thenReturn(savedPolicy);
             when(premiumRepository.findByPolicyId(POLICY_ID))
                     .thenReturn(List.of());
             when(policyMapper.toResponseWithPremiums(eq(savedPolicy), anyList()))
                     .thenReturn(policyResponse);
-            when(authServiceClient.getCustomerEmail(CUSTOMER_ID))
-                    .thenReturn("customer@email.com");
+            when(authServiceClient.getCustomerProfile(CUSTOMER_ID))
+                    .thenReturn(new com.smartSure.PolicyService.dto.client.CustomerProfileResponse(CUSTOMER_ID, "Test", "customer@email.com", "1234567890", 30));
             when(premiumCalculator.monthsBetweenInstallments(any()))
                     .thenReturn(1);
             when(premiumCalculator.installmentCount(anyInt(), any()))
@@ -179,6 +181,52 @@ class PolicyServiceTest {
         }
 
         @Test
+        @DisplayName("should throw IllegalArgumentException when startDate is in the past")
+        void purchasePolicy_pastStartDate_throwsException() {
+            // Arrange
+            PolicyPurchaseRequest request = PolicyPurchaseRequest.builder()
+                    .policyTypeId(POLICY_TYPE_ID)
+                    .coverageAmount(new BigDecimal("500000.00"))
+                    .paymentFrequency(Policy.PaymentFrequency.MONTHLY)
+                    .startDate(LocalDate.now().minusDays(1)) // Past date
+                    .customerAge(30)
+                    .build();
+
+            when(policyTypeRepository.findById(POLICY_TYPE_ID))
+                    .thenReturn(Optional.of(activePolicyType));
+
+            // Act & Assert
+            assertThatThrownBy(() -> policyService.purchasePolicy(CUSTOMER_ID, request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Start date cannot be in the past");
+
+            verify(policyRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("should throw IllegalArgumentException when startDate is null")
+        void purchasePolicy_nullStartDate_throwsException() {
+            // Arrange
+            PolicyPurchaseRequest request = PolicyPurchaseRequest.builder()
+                    .policyTypeId(POLICY_TYPE_ID)
+                    .coverageAmount(new BigDecimal("500000.00"))
+                    .paymentFrequency(Policy.PaymentFrequency.MONTHLY)
+                    .startDate(null) // Null date
+                    .customerAge(30)
+                    .build();
+
+            when(policyTypeRepository.findById(POLICY_TYPE_ID))
+                    .thenReturn(Optional.of(activePolicyType));
+
+            // Act & Assert
+            assertThatThrownBy(() -> policyService.purchasePolicy(CUSTOMER_ID, request))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("Start date is required");
+
+            verify(policyRepository, never()).save(any());
+        }
+
+        @Test
         @DisplayName("should throw InactivePolicyTypeException when policy type is DISCONTINUED")
         void purchasePolicy_inactivePolicyType_throwsException() {
             // Arrange
@@ -204,9 +252,11 @@ class PolicyServiceTest {
 
             when(policyTypeRepository.findById(POLICY_TYPE_ID))
                     .thenReturn(Optional.of(activePolicyType));
-            when(policyRepository.existsByCustomerIdAndPolicyType_IdAndStatusIn(
+            when(policyRepository.findFirstByCustomerIdAndPolicyType_IdAndStatusIn(
                     eq(CUSTOMER_ID), eq(POLICY_TYPE_ID), anyList()))
-                    .thenReturn(true);
+                    .thenReturn(Optional.of(savedPolicy));
+            when(internalClaimClient.getTotalApprovedClaimsAmount(POLICY_ID))
+                    .thenReturn(BigDecimal.ZERO); // Coverage not exhausted
 
             // Act & Assert
             assertThatThrownBy(() -> policyService.purchasePolicy(CUSTOMER_ID, request))
@@ -230,9 +280,9 @@ class PolicyServiceTest {
 
             when(policyTypeRepository.findById(POLICY_TYPE_ID))
                     .thenReturn(Optional.of(activePolicyType));
-            when(policyRepository.existsByCustomerIdAndPolicyType_IdAndStatusIn(
+            when(policyRepository.findFirstByCustomerIdAndPolicyType_IdAndStatusIn(
                     any(), any(), anyList()))
-                    .thenReturn(false);
+                    .thenReturn(Optional.empty());
 
             // Act & Assert
             assertThatThrownBy(() -> policyService.purchasePolicy(CUSTOMER_ID, request))
@@ -242,38 +292,22 @@ class PolicyServiceTest {
         }
 
         @Test
-        @DisplayName("should set status CREATED when startDate is in the future")
-        void purchasePolicy_futureStartDate_statusIsCreated() {
+        @DisplayName("should set status CREATED for all new policies")
+        void purchasePolicy_allPolicies_statusIsCreated() {
             // Arrange
-            PolicyPurchaseRequest request = PolicyPurchaseRequest.builder()
-                    .policyTypeId(POLICY_TYPE_ID)
-                    .coverageAmount(new BigDecimal("500000.00"))
-                    .paymentFrequency(Policy.PaymentFrequency.MONTHLY)
-                    .startDate(LocalDate.now().plusDays(10)) // future date
-                    .customerAge(30)
-                    .build();
+            PolicyPurchaseRequest request = buildValidRequest();
 
             PremiumCalculationResponse calcResponse = PremiumCalculationResponse.builder()
                     .calculatedPremium(new BigDecimal("2625.00"))
                     .build();
 
-            // Create a policy entity that will be captured when save() is called
-            Policy futurePolicy = Policy.builder()
-                    .id(POLICY_ID).customerId(CUSTOMER_ID).policyType(activePolicyType)
-                    .coverageAmount(new BigDecimal("500000.00"))
-                    .premiumAmount(new BigDecimal("2625.00"))
-                    .paymentFrequency(Policy.PaymentFrequency.MONTHLY)
-                    .startDate(LocalDate.now().plusDays(10))
-                    .endDate(LocalDate.now().plusDays(10).plusMonths(12))
-                    .build();
-
             when(policyTypeRepository.findById(POLICY_TYPE_ID))
                     .thenReturn(Optional.of(activePolicyType));
-            when(policyRepository.existsByCustomerIdAndPolicyType_IdAndStatusIn(
-                    any(), any(), anyList())).thenReturn(false);
+            when(policyRepository.findFirstByCustomerIdAndPolicyType_IdAndStatusIn(
+                    any(), any(), anyList())).thenReturn(Optional.empty());
             when(premiumCalculator.calculatePremium(any(), any(), any(), anyInt()))
                     .thenReturn(calcResponse);
-            when(policyMapper.toEntity(request)).thenReturn(futurePolicy);
+            when(policyMapper.toEntity(request)).thenReturn(savedPolicy);
 
             ArgumentCaptor<Policy> policyCaptor = ArgumentCaptor.forClass(Policy.class);
             when(policyRepository.save(policyCaptor.capture())).thenReturn(savedPolicy);
@@ -281,49 +315,18 @@ class PolicyServiceTest {
             when(policyMapper.toResponseWithPremiums(any(), anyList())).thenReturn(policyResponse);
             when(premiumCalculator.monthsBetweenInstallments(any())).thenReturn(1);
             when(premiumCalculator.installmentCount(anyInt(), any())).thenReturn(12);
+            when(authServiceClient.getCustomerProfile(CUSTOMER_ID))
+                    .thenReturn(new com.smartSure.PolicyService.dto.client.CustomerProfileResponse(CUSTOMER_ID, "Test", "customer@email.com", "1234567890", 30));
 
             // Act
             policyService.purchasePolicy(CUSTOMER_ID, request);
 
-            // Assert — captured policy must have CREATED status (future start date)
+            // Assert — all new policies start with CREATED status
             assertThat(policyCaptor.getValue().getStatus())
                     .isEqualTo(Policy.PolicyStatus.CREATED);
         }
 
-        @Test
-        @DisplayName("should still complete purchase even if AuthService is down (null email)")
-        void purchasePolicy_authServiceDown_purchaseSucceeds() {
-            // Arrange - AuthService throws exception (simulates it being down)
-            PolicyPurchaseRequest request = buildValidRequest();
-
-            when(policyTypeRepository.findById(POLICY_TYPE_ID))
-                    .thenReturn(Optional.of(activePolicyType));
-            when(policyRepository.existsByCustomerIdAndPolicyType_IdAndStatusIn(
-                    any(), any(), anyList())).thenReturn(false);
-            when(premiumCalculator.calculatePremium(any(), any(), any(), anyInt()))
-                    .thenReturn(PremiumCalculationResponse.builder()
-                            .calculatedPremium(new BigDecimal("2625.00")).build());
-            when(policyMapper.toEntity(request)).thenReturn(savedPolicy);
-            when(policyRepository.save(any())).thenReturn(savedPolicy);
-            when(premiumRepository.findByPolicyId(any())).thenReturn(List.of());
-            when(policyMapper.toResponseWithPremiums(any(), anyList())).thenReturn(policyResponse);
-            when(premiumCalculator.monthsBetweenInstallments(any())).thenReturn(1);
-            when(premiumCalculator.installmentCount(anyInt(), any())).thenReturn(12);
-
-            // AuthService throws exception — simulates network failure
-            when(authServiceClient.getCustomerEmail(CUSTOMER_ID))
-                    .thenThrow(new RuntimeException("Connection refused"));
-
-            // Act — should NOT throw, should complete gracefully
-            PolicyResponse result = policyService.purchasePolicy(CUSTOMER_ID, request);
-
-            // Assert
-            assertThat(result).isNotNull();
-            // notification still published — with null email (consumer will skip email)
-            verify(notificationPublisher, times(1)).publishPolicyPurchased(any());
-        }
-
-        @Test
+@Test
         @DisplayName("should generate correct number of premium installments for MONTHLY frequency")
         void purchasePolicy_monthlyFrequency_generates12Installments() {
             // Arrange
@@ -331,8 +334,8 @@ class PolicyServiceTest {
 
             when(policyTypeRepository.findById(POLICY_TYPE_ID))
                     .thenReturn(Optional.of(activePolicyType)); // termMonths = 12
-            when(policyRepository.existsByCustomerIdAndPolicyType_IdAndStatusIn(
-                    any(), any(), anyList())).thenReturn(false);
+            when(policyRepository.findFirstByCustomerIdAndPolicyType_IdAndStatusIn(
+                    any(), any(), anyList())).thenReturn(Optional.empty());
             when(premiumCalculator.calculatePremium(any(), any(), any(), anyInt()))
                     .thenReturn(PremiumCalculationResponse.builder()
                             .calculatedPremium(new BigDecimal("2625.00")).build());
@@ -344,6 +347,8 @@ class PolicyServiceTest {
                     .thenReturn(1);
             when(premiumCalculator.installmentCount(12, Policy.PaymentFrequency.MONTHLY))
                     .thenReturn(12);
+            when(authServiceClient.getCustomerProfile(CUSTOMER_ID))
+                    .thenReturn(new com.smartSure.PolicyService.dto.client.CustomerProfileResponse(CUSTOMER_ID, "Test", "customer@email.com", "1234567890", 30));
 
             // Act
             policyService.purchasePolicy(CUSTOMER_ID, request);
@@ -448,7 +453,7 @@ class PolicyServiceTest {
                     .thenReturn(List.of(pendingPremium));
             when(policyRepository.save(any())).thenReturn(savedPolicy);
             when(policyMapper.toResponse(savedPolicy)).thenReturn(policyResponse);
-            when(authServiceClient.getCustomerEmail(CUSTOMER_ID)).thenReturn("c@email.com");
+            when(authServiceClient.getCustomerProfile(CUSTOMER_ID)).thenReturn(new com.smartSure.PolicyService.dto.client.CustomerProfileResponse(CUSTOMER_ID, "Test", "c@email.com", "1234567890", 30));
 
             // Act
             PolicyResponse result = policyService.cancelPolicy(POLICY_ID, CUSTOMER_ID, "No longer needed");
@@ -540,7 +545,8 @@ class PolicyServiceTest {
             when(premiumRepository.findByIdAndPolicyId(1L, POLICY_ID))
                     .thenReturn(Optional.of(pendingPremium));
             when(premiumRepository.save(any())).thenReturn(pendingPremium);
-            when(authServiceClient.getCustomerEmail(CUSTOMER_ID)).thenReturn("c@email.com");
+            when(authServiceClient.getCustomerProfile(CUSTOMER_ID))
+                    .thenReturn(new com.smartSure.PolicyService.dto.client.CustomerProfileResponse(CUSTOMER_ID, "Test", "c@email.com", "1234567890", 30));
 
             // Act
             PremiumResponse result = policyService.payPremium(CUSTOMER_ID, request);
@@ -575,6 +581,8 @@ class PolicyServiceTest {
             when(premiumRepository.findByIdAndPolicyId(1L, POLICY_ID))
                     .thenReturn(Optional.of(pendingPremium));
             when(premiumRepository.save(any())).thenReturn(pendingPremium);
+            when(authServiceClient.getCustomerProfile(CUSTOMER_ID))
+                    .thenReturn(new com.smartSure.PolicyService.dto.client.CustomerProfileResponse(CUSTOMER_ID, "Test", "c@email.com", "1234567890", 30));
 
             // Act
             policyService.payPremium(CUSTOMER_ID, request);

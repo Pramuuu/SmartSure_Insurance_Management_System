@@ -10,4 +10,5 @@ public class CustomerProfileResponse {
     private String name;
     private String email;
     private String phone;
+    private Integer age;
 }

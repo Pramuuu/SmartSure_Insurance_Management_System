@@ -23,14 +23,32 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http.csrf(csrf -> csrf.disable())
-            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/actuator/**").permitAll()
-                .anyRequest().permitAll()
-            )
-            .addFilterBefore(internalRequestFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterAfter(headerAuthenticationFilter, InternalRequestFilter.class);
+
+        http
+                .csrf(csrf -> csrf.disable())
+
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+
+                .authorizeHttpRequests(auth -> auth
+                        //  Public endpoints only
+                        .requestMatchers(
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**",
+                                "/swagger-ui.html",
+                                "/actuator/**"
+                        ).permitAll()
+
+                        //  EVERYTHING else requires authentication
+                        .anyRequest().authenticated()
+                )
+
+                //  Internal service validation (X-Internal-Secret)
+                .addFilterBefore(internalRequestFilter, UsernamePasswordAuthenticationFilter.class)
+
+                //  Extract user from headers (X-User-Id, X-User-Role)
+                .addFilterAfter(headerAuthenticationFilter, InternalRequestFilter.class);
 
         return http.build();
     }

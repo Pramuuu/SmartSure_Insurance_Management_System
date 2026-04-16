@@ -3,6 +3,7 @@ package com.smartSure.PolicyService.service.impl;
 import com.smartSure.PolicyService.client.AuthServiceClient;
 import com.smartSure.PolicyService.dto.calculation.PremiumCalculationRequest;
 import com.smartSure.PolicyService.dto.calculation.PremiumCalculationResponse;
+import com.smartSure.PolicyService.dto.client.CustomerProfileResponse;
 import com.smartSure.PolicyService.dto.event.*;
 import com.smartSure.PolicyService.dto.policy.*;
 import com.smartSure.PolicyService.dto.premium.PremiumPaymentRequest;
@@ -18,6 +19,7 @@ import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -29,7 +31,10 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import com.smartSure.PolicyService.client.InternalClaimClient;
 
 @Slf4j
 @Service
@@ -44,14 +49,15 @@ public class PolicyServiceImpl implements PolicyService {
     private final PolicyMapper          policyMapper;
     private final NotificationPublisher notificationPublisher;
     private final AuthServiceClient     authServiceClient;
+    private final InternalClaimClient   internalClaimClient;
 
     // ═══════════════════════════════════════════════════════════
     // PURCHASE
     // ═══════════════════════════════════════════════════════════
 
     @Override
-//  @CircuitBreaker(name = "policyTypeService", fallbackMethod = "purchaseFallback")
-//  @RateLimiter(name = "policyPurchase", fallbackMethod = "purchaseRateLimitFallback")
+    @CircuitBreaker(name = "policyTypeService", fallbackMethod = "purchaseFallback")
+    @RateLimiter(name = "policyPurchase", fallbackMethod = "purchaseRateLimitFallback")
     @Transactional
     public PolicyResponse purchasePolicy(Long customerId, PolicyPurchaseRequest request) {
 
@@ -60,14 +66,43 @@ public class PolicyServiceImpl implements PolicyService {
         PolicyType type = policyTypeRepository.findById(request.getPolicyTypeId())
                 .orElseThrow(() -> new PolicyTypeNotFoundException(request.getPolicyTypeId()));
 
+        if (request.getStartDate() == null) {
+            throw new IllegalArgumentException("Start date is required");
+        }
+
+        if (request.getStartDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("Start date cannot be in the past");
+        }
+
         if (type.getStatus() != PolicyType.PolicyTypeStatus.ACTIVE) {
             throw new InactivePolicyTypeException(type.getName());
         }
 
-        boolean alreadyExists = policyRepository.existsByCustomerIdAndPolicyType_IdAndStatusIn(
+        Optional<Policy> existingPolicyOpt = policyRepository.findFirstByCustomerIdAndPolicyType_IdAndStatusIn(
                 customerId, type.getId(),
                 List.of(Policy.PolicyStatus.CREATED, Policy.PolicyStatus.ACTIVE));
-        if (alreadyExists) throw new DuplicatePolicyException();
+        
+        if (existingPolicyOpt.isPresent()) {
+            Policy existingPolicy = existingPolicyOpt.get();
+            try {
+                BigDecimal totalApprovedClaims = internalClaimClient.getTotalApprovedClaimsAmount(existingPolicy.getId());
+                if (totalApprovedClaims == null) totalApprovedClaims = BigDecimal.ZERO;
+                
+                if (totalApprovedClaims.compareTo(existingPolicy.getCoverageAmount()) < 0) {
+                    // Coverage not fully exhausted -> block duplicate purchase
+                    throw new DuplicatePolicyException();
+                } else {
+                    log.info("Customer {} allowed to repurchase policy type {}; previous policy {} coverage fully exhausted.",
+                        customerId, type.getId(), existingPolicy.getId());
+                }
+            } catch (DuplicatePolicyException e) {
+                throw e; // rethrow expected exception
+            } catch (Exception e) {
+                log.warn("Failed to check claims for policy {}: {}", existingPolicy.getId(), e.getMessage());
+                // Fail safe: block purchase if ClaimService is down or check fails
+                throw new DuplicatePolicyException(); 
+            }
+        }
 
         if (request.getCoverageAmount().compareTo(type.getMaxCoverageAmount()) > 0) {
             throw new CoverageExceedsLimitException(request.getCoverageAmount(), type.getMaxCoverageAmount());
@@ -84,21 +119,22 @@ public class PolicyServiceImpl implements PolicyService {
         policy.setPremiumAmount(premiumAmount);
         policy.setPolicyNumber(generatePolicyNumber());
         policy.setEndDate(request.getStartDate().plusMonths(type.getTermMonths()));
-        policy.setStatus(request.getStartDate().isAfter(LocalDate.now())
-                ? Policy.PolicyStatus.CREATED : Policy.PolicyStatus.ACTIVE);
+        
+        // Improvement: All policies begin as CREATED until the first premium is officially PAID.
+        policy.setStatus(Policy.PolicyStatus.CREATED);
 
         Policy saved = policyRepository.save(policy);
         generatePremiumSchedule(saved, type.getTermMonths());
         saveAudit(saved.getId(), customerId, "CUSTOMER", "PURCHASED",
                 null, saved.getStatus().name(), "New policy purchased");
-
+        CustomerProfileResponse profile = getCustomerProfileSafely(customerId);
         notificationPublisher.publishPolicyPurchased(
                 PolicyPurchasedEvent.builder()
                         .policyId(saved.getId())
                         .policyNumber(saved.getPolicyNumber())
                         .customerId(customerId)
-                        .customerEmail(getCustomerEmailSafely(customerId))
-                        .customerName("Customer")
+                        .customerEmail(profile.getEmail())
+                        .customerName(profile.getName())
                         .policyTypeName(type.getName())
                         .coverageAmount(saved.getCoverageAmount())
                         .premiumAmount(saved.getPremiumAmount())
@@ -113,14 +149,12 @@ public class PolicyServiceImpl implements PolicyService {
         return buildDetailedResponse(saved);
     }
 
-    // Circuit breaker fallback for purchasePolicy
-    public PolicyResponse purchaseFallback(Long customerId, PolicyPurchaseRequest request, Throwable t) {
+    public PolicyResponse purchaseFallback(Long customerId, PolicyPurchaseRequest request, io.github.resilience4j.circuitbreaker.CallNotPermittedException t) {
         log.error("purchasePolicy CIRCUIT BREAKER fallback — customerId={}, reason={}", customerId, t.getMessage());
         throw new ServiceUnavailableException("Policy purchase service", t);
     }
 
-    // Rate limiter fallback for purchasePolicy
-    public PolicyResponse purchaseRateLimitFallback(Long customerId, PolicyPurchaseRequest request, Throwable t) {
+    public PolicyResponse purchaseRateLimitFallback(Long customerId, PolicyPurchaseRequest request, io.github.resilience4j.ratelimiter.RequestNotPermitted t) {
         log.warn("purchasePolicy RATE LIMIT fallback — customerId={}", customerId);
         throw new ServiceUnavailableException("Too many purchase requests. Please wait a moment and try again.");
     }
@@ -151,6 +185,19 @@ public class PolicyServiceImpl implements PolicyService {
     public PolicyPageResponse getAllPolicies(Pageable pageable) {
         Page<Policy> page = policyRepository.findAll(pageable);
         return toPageResponse(page);
+    }
+
+    /**
+     * FIX: New method — returns all policies as a flat List with no pagination wrapper.
+     * Called by GET /api/policies/admin/list which is used by AdminService Feign client.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<PolicyResponse> getAllPoliciesAsList() {
+        return policyRepository.findAll()
+                .stream()
+                .map(this::buildDetailedResponse)
+                .collect(Collectors.toList());
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -184,21 +231,20 @@ public class PolicyServiceImpl implements PolicyService {
         Policy saved = policyRepository.save(policy);
         saveAudit(policyId, customerId, "CUSTOMER", "CANCELLED",
                 prevStatus, Policy.PolicyStatus.CANCELLED.name(), reason);
-
+        CustomerProfileResponse profile = getCustomerProfileSafely(customerId);
         notificationPublisher.publishPolicyCancelled(
                 PolicyCancelledEvent.builder()
                         .policyId(saved.getId())
                         .policyNumber(saved.getPolicyNumber())
                         .customerId(customerId)
-                        .customerEmail(getCustomerEmailSafely(customerId))
-                        .customerName("Customer")
+                        .customerEmail(profile.getEmail())
+                        .customerName(profile.getName())
                         .cancellationReason(reason)
                         .build());
 
         return policyMapper.toResponse(saved);
     }
 
-    // Circuit breaker fallback for cancelPolicy
     public PolicyResponse cancelFallback(Long policyId, Long customerId, String reason, Throwable t) {
         log.error("cancelPolicy CIRCUIT BREAKER fallback — policyId={}, reason={}", policyId, t.getMessage());
         throw new ServiceUnavailableException("Policy cancellation service", t);
@@ -216,6 +262,14 @@ public class PolicyServiceImpl implements PolicyService {
 
         if (!oldPolicy.getCustomerId().equals(customerId)) {
             throw new UnauthorizedAccessException("You can only renew your own policies");
+        }
+
+        if (oldPolicy.getStatus() == Policy.PolicyStatus.CANCELLED) {
+            throw new IllegalStateException("Cancelled policies cannot be renewed");
+        }
+
+        if (oldPolicy.getStatus() == Policy.PolicyStatus.CREATED) {
+            throw new IllegalStateException("Policy has not yet become active");
         }
 
         oldPolicy.setStatus(Policy.PolicyStatus.EXPIRED);
@@ -255,14 +309,15 @@ public class PolicyServiceImpl implements PolicyService {
         saveAudit(saved.getId(), customerId, "CUSTOMER", "RENEWED",
                 null, Policy.PolicyStatus.ACTIVE.name(),
                 "Renewed from policy " + oldPolicy.getPolicyNumber());
+        CustomerProfileResponse profile = getCustomerProfileSafely(customerId);
 
         notificationPublisher.publishPolicyPurchased(
                 PolicyPurchasedEvent.builder()
                         .policyId(saved.getId())
                         .policyNumber(saved.getPolicyNumber())
                         .customerId(customerId)
-                        .customerEmail(getCustomerEmailSafely(customerId))
-                        .customerName("Customer")
+                        .customerEmail(profile.getEmail())
+                        .customerName(profile.getName())
                         .policyTypeName(type.getName())
                         .coverageAmount(saved.getCoverageAmount())
                         .premiumAmount(saved.getPremiumAmount())
@@ -313,6 +368,7 @@ public class PolicyServiceImpl implements PolicyService {
         saveAudit(policy.getId(), customerId, "CUSTOMER", "PREMIUM_PAID",
                 Premium.PremiumStatus.PENDING.name(), Premium.PremiumStatus.PAID.name(),
                 "Premium ID: " + premium.getId() + ", Ref: " + premium.getPaymentReference());
+        CustomerProfileResponse profile = getCustomerProfileSafely(customerId);
 
         notificationPublisher.publishPremiumPaid(
                 PremiumPaidEvent.builder()
@@ -320,8 +376,8 @@ public class PolicyServiceImpl implements PolicyService {
                         .policyId(policy.getId())
                         .policyNumber(policy.getPolicyNumber())
                         .customerId(customerId)
-                        .customerEmail(getCustomerEmailSafely(customerId))
-                        .customerName("Customer")
+                        .customerEmail(profile.getEmail())
+                        .customerName(profile.getName())
                         .amount(saved.getAmount())
                         .paidDate(saved.getPaidDate())
                         .paymentMethod(saved.getPaymentMethod() != null
@@ -332,7 +388,6 @@ public class PolicyServiceImpl implements PolicyService {
         return mapPremium(saved);
     }
 
-    // Circuit breaker fallback for payPremium
     public PremiumResponse payPremiumFallback(Long customerId, PremiumPaymentRequest request, Throwable t) {
         log.error("payPremium CIRCUIT BREAKER fallback — customerId={}, reason={}", customerId, t.getMessage());
         throw new ServiceUnavailableException("Premium payment service", t);
@@ -345,6 +400,69 @@ public class PolicyServiceImpl implements PolicyService {
                 .stream()
                 .map(this::mapPremium)
                 .toList();
+    }
+
+    @org.springframework.amqp.rabbit.annotation.RabbitListener(queues = com.smartSure.PolicyService.config.RabbitMQConfig.QUEUE_PAYMENT_COMPLETED)
+    @Transactional
+    public void handlePaymentCompleted(com.smartSure.PolicyService.dto.event.PaymentCompletedEvent event) {
+        log.info("Received PaymentCompletedEvent for premiumId={}", event.getPremiumId());
+        try {
+            Premium premium = premiumRepository.findById(event.getPremiumId())
+                    .orElseThrow(() -> new PremiumNotFoundException(event.getPremiumId(), event.getPolicyId()));
+            
+            if (premium.getStatus() == Premium.PremiumStatus.PAID) {
+                log.info("Premium {} is already paid, ignoring event", premium.getId());
+                return;
+            }
+            
+            premium.setStatus(Premium.PremiumStatus.PAID);
+            premium.setPaidDate(event.getPaidAt() != null ? event.getPaidAt().toLocalDate() : LocalDate.now());
+            
+            if (event.getPaymentMethod() != null) {
+                try {
+                    premium.setPaymentMethod(Premium.PaymentMethod.valueOf(event.getPaymentMethod()));
+                } catch (IllegalArgumentException e) {
+                    log.warn("Unknown payment method: {}", event.getPaymentMethod());
+                }
+            }
+            
+            premium.setPaymentReference(event.getRazorpayPaymentId());
+            premiumRepository.save(premium);
+
+            // Improvement: Activate the policy if this is the first payment and start date is valid
+            if (premium.getPolicy().getStatus() == Policy.PolicyStatus.CREATED) {
+                if (!premium.getPolicy().getStartDate().isAfter(LocalDate.now())) {
+                    premium.getPolicy().setStatus(Policy.PolicyStatus.ACTIVE);
+                    policyRepository.save(premium.getPolicy());
+                    saveAudit(premium.getPolicy().getId(), event.getCustomerId(), "SYSTEM", "ACTIVATED",
+                            Policy.PolicyStatus.CREATED.name(), Policy.PolicyStatus.ACTIVE.name(),
+                            "Policy activated upon first premium payment");
+                }
+            }
+
+            saveAudit(premium.getPolicy().getId(), event.getCustomerId(), "SYSTEM", "PREMIUM_PAID",
+                    Premium.PremiumStatus.PENDING.name(), Premium.PremiumStatus.PAID.name(),
+                    "Premium paid via payment tracking");
+
+            CustomerProfileResponse profile = getCustomerProfileSafely(premium.getPolicy().getCustomerId());
+            notificationPublisher.publishPremiumPaid(
+                    PremiumPaidEvent.builder()
+                            .premiumId(premium.getId())
+                            .policyId(premium.getPolicy().getId())
+                            .policyNumber(premium.getPolicy().getPolicyNumber())
+                            .customerId(event.getCustomerId())
+                            .customerEmail(profile.getEmail())
+                            .customerName(profile.getName())
+                            .amount(premium.getAmount())
+                            .paidDate(premium.getPaidDate())
+                            .paymentMethod(premium.getPaymentMethod() != null ? premium.getPaymentMethod().name() : null)
+                            .paymentReference(premium.getPaymentReference())
+                            .build()
+            );
+
+        } catch (Exception e) {
+            log.error("Failed to process payment completed event for premiumId={}: {}", event.getPremiumId(), e.getMessage());
+        }
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -411,7 +529,6 @@ public class PolicyServiceImpl implements PolicyService {
     // SCHEDULERS
     // ═══════════════════════════════════════════════════════════
 
-    // Runs daily at 01:00 — marks all active policies past their end date as EXPIRED
     @Scheduled(cron = "0 0 1 * * *")
     @Transactional
     public void expirePolicies() {
@@ -427,7 +544,6 @@ public class PolicyServiceImpl implements PolicyService {
         log.info("Expiry scheduler: {} policies expired", expired.size());
     }
 
-    // Runs daily at 08:00 — marks all pending premiums past their due date as OVERDUE
     @Scheduled(cron = "0 0 8 * * *")
     @Transactional
     public void markOverduePremiums() {
@@ -437,7 +553,6 @@ public class PolicyServiceImpl implements PolicyService {
         log.info("Overdue scheduler: {} premiums marked overdue", overdue.size());
     }
 
-    // Runs daily at 09:00 — publishes PREMIUM_DUE_REMINDER events for premiums due in 7 days
     @Scheduled(cron = "0 0 9 * * *")
     @Transactional(readOnly = true)
     public void sendPremiumDueReminders() {
@@ -446,15 +561,15 @@ public class PolicyServiceImpl implements PolicyService {
                 .stream()
                 .filter(p -> p.getDueDate().equals(reminderDate))
                 .forEach(p -> {
-                    String email = getCustomerEmailSafely(p.getPolicy().getCustomerId());
+                    CustomerProfileResponse profile = getCustomerProfileSafely(p.getPolicy().getCustomerId());
                     notificationPublisher.publishPremiumDueReminder(
                             PremiumDueReminderEvent.builder()
                                     .premiumId(p.getId())
                                     .policyId(p.getPolicy().getId())
                                     .policyNumber(p.getPolicy().getPolicyNumber())
                                     .customerId(p.getPolicy().getCustomerId())
-                                    .customerEmail(email)
-                                    .customerName("Customer")
+                                    .customerEmail(profile.getEmail())
+                                    .customerName(profile.getName())
                                     .amount(p.getAmount())
                                     .dueDate(p.getDueDate())
                                     .build());
@@ -462,7 +577,6 @@ public class PolicyServiceImpl implements PolicyService {
         log.info("Premium reminder scheduler fired for due date: {}", reminderDate);
     }
 
-    // Runs daily at 09:05 — publishes POLICY_EXPIRY_REMINDER events for policies expiring in 30 days
     @Scheduled(cron = "0 5 9 * * *")
     @Transactional(readOnly = true)
     public void sendExpiryReminders() {
@@ -470,14 +584,14 @@ public class PolicyServiceImpl implements PolicyService {
         policyRepository.findExpiringPolicies(
                         Policy.PolicyStatus.ACTIVE, reminderDate, reminderDate)
                 .forEach(p -> {
-                    String email = getCustomerEmailSafely(p.getCustomerId());
+                    CustomerProfileResponse profile = getCustomerProfileSafely(p.getCustomerId());
                     notificationPublisher.publishPolicyExpiryReminder(
                             PolicyExpiryReminderEvent.builder()
                                     .policyId(p.getId())
                                     .policyNumber(p.getPolicyNumber())
                                     .customerId(p.getCustomerId())
-                                    .customerEmail(email)
-                                    .customerName("Customer")
+                                    .customerEmail(profile.getEmail())
+                                    .customerName(profile.getName())
                                     .policyTypeName(p.getPolicyType().getName())
                                     .endDate(p.getEndDate())
                                     .build());
@@ -564,12 +678,17 @@ public class PolicyServiceImpl implements PolicyService {
                 .build();
     }
 
-    private String getCustomerEmailSafely(Long customerId) {
+    @Cacheable(value = "customerEmail", key = "#customerId")
+    private CustomerProfileResponse getCustomerProfileSafely(Long customerId) {
         try {
-            return authServiceClient.getCustomerEmail(customerId);
+            return authServiceClient.getCustomerProfile(customerId);
         } catch (Exception e) {
-            log.warn("Could not fetch customer email for customerId={}: {}", customerId, e.getMessage());
-            return null;
+            log.warn("Could not fetch profile for customerId={}: {}", customerId, e.getMessage());
+            return CustomerProfileResponse.builder()
+                    .id(customerId)
+                    .name("Customer")
+                    .email(null)
+                    .build();
         }
     }
 }

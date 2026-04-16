@@ -1,5 +1,6 @@
 package com.smartSure.adminService.service;
 
+import com.smartSure.adminService.dto.AuditLogDTO;
 import com.smartSure.adminService.entity.AuditLog;
 import com.smartSure.adminService.exception.ResourceNotFoundException;
 import com.smartSure.adminService.repository.AuditLogRepository;
@@ -9,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -16,8 +18,8 @@ public class AuditLogService {
 
     private final AuditLogRepository auditLogRepository;
 
-    // Log an admin action — called after every approve/reject/update
-    public AuditLog log(Long adminId, String action, String targetEntity, Long targetId, String remarks) {
+    public AuditLog log(Long adminId, String action, String targetEntity,
+                        Long targetId, String remarks) {
         AuditLog log = new AuditLog();
         log.setAdminId(adminId);
         log.setAction(action);
@@ -27,39 +29,57 @@ public class AuditLogService {
         return auditLogRepository.save(log);
     }
 
-    // Get all logs by admin
-    public List<AuditLog> getLogsByAdmin(Long adminId) {
-        return auditLogRepository.findByAdminId(adminId);
+    public List<AuditLogDTO> getAllLogs() {
+        return auditLogRepository.findAll().stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
-    // Get all logs — for full audit trail view
-    public List<AuditLog> getAllLogs() {
-        return auditLogRepository.findAll();
+    public List<AuditLogDTO> getLogsByAdmin(Long adminId) {
+        return auditLogRepository.findByAdminId(adminId).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
-    // Get all logs for a specific entity type
-    public List<AuditLog> getLogsByEntity(String targetEntity) {
-        return auditLogRepository.findByTargetEntity(targetEntity);
+    public List<AuditLogDTO> getLogsByEntity(String targetEntity) {
+        return auditLogRepository.findByTargetEntity(targetEntity).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
-    // Get full history of a specific record
-    public List<AuditLog> getLogsByEntityAndId(String targetEntity, Long targetId) {
-        return auditLogRepository.findByTargetEntityAndTargetId(targetEntity, targetId);
+    public List<AuditLogDTO> getLogsByEntityAndId(String targetEntity, Long targetId) {
+        return auditLogRepository.findByTargetEntityAndTargetId(targetEntity, targetId).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
-    // Get logs within a date range — for generating reports
-    public List<AuditLog> getLogsByDateRange(LocalDateTime from, LocalDateTime to) {
-        return auditLogRepository.findByDateRange(from, to);
+    public List<AuditLogDTO> getLogsByDateRange(LocalDateTime from, LocalDateTime to) {
+        return auditLogRepository.findByDateRange(from, to).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
-    // Get most recent N logs — for admin dashboard activity feed
-    public List<AuditLog> getRecentLogs(int limit) {
-        return auditLogRepository.findRecentLogs(PageRequest.of(0, limit));
+    public List<AuditLogDTO> getRecentLogs(int limit) {
+        return auditLogRepository.findRecentLogs(PageRequest.of(0, limit)).stream()
+                .map(this::toDTO)
+                .collect(Collectors.toList());
     }
 
-    // Get a single log by ID
-    public AuditLog getLogById(Long id) {
-        return auditLogRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("AuditLog not found with id: " + id));
+    public AuditLogDTO getLogById(Long id) {
+        return toDTO(auditLogRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "AuditLog not found with id: " + id)));
+    }
+
+    private AuditLogDTO toDTO(AuditLog log) {
+        return AuditLogDTO.builder()
+                .id(log.getId())
+                .adminId(log.getAdminId())
+                .action(log.getAction())
+                .targetEntity(log.getTargetEntity())
+                .targetId(log.getTargetId())
+                .remarks(log.getRemarks())
+                .performedAt(log.getPerformedAt())
+                .build();
     }
 }

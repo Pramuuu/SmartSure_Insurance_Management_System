@@ -1,103 +1,5 @@
-#version: '3.8'
-#
-#services:
-#  # ==========================================
-#  # DATABASES AND MESSAGE BROKERS
-#  # ==========================================
-#  mysqldb:
-#    image: mysql:8.0
-#    container_name: smartsure-mysql
-#    restart: always
-#    environment:
-#      MYSQL_ROOT_PASSWORD: pramod280504
-#      MYSQL_DATABASE: smartsure_db
-#    ports:
-#      - "3307:3306"
-#    volumes:
-#      - ./infra/init.sql:/docker-entrypoint-initdb.d/init.sql
-#      - mysql-data:/var/lib/mysql
-#    networks:
-#      - smartsure-network
-#
-#  redis:
-#    image: redis:alpine
-#    container_name: smartsure-redis
-#    ports:
-#      - "6379:6379"
-#    volumes:
-#      - redis-data:/data
-#    networks:
-#      - smartsure-network
-#
-#  rabbitmq:
-#    image: rabbitmq:3-management
-#    container_name: smartsure-rabbitmq
-#    ports:
-#      - "5672:5672"   # messaging port
-#      - "15672:15672" # management UI port
-#    environment:
-#      RABBITMQ_DEFAULT_USER: smartsure
-#      RABBITMQ_DEFAULT_PASS: smartsure
-#    networks:
-#      - smartsure-network
-#
-#  # ==========================================
-#  # OBSERVABILITY STACK
-#  # ==========================================
-#  zipkin:
-#    image: openzipkin/zipkin
-#    container_name: smartsure-zipkin
-#    ports:
-#      - "9411:9411"
-#    networks:
-#      - smartsure-network
-#
-#  prometheus:
-#    image: prom/prometheus
-#    container_name: smartsure-prometheus
-#    volumes:
-#      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml
-#    ports:
-#      - "9090:9090"
-#    networks:
-#      - smartsure-network
-#
-#  loki:
-#    image: grafana/loki:latest
-#    container_name: smartsure-loki
-#    ports:
-#      - "3100:3100"
-#    command: -config.file=/etc/loki/local-config.yaml
-#    networks:
-#      - smartsure-network
-#
-#  grafana:
-#    image: grafana/grafana:latest
-#    container_name: smartsure-grafana
-#    ports:
-#      - "3000:3000"
-#    environment:
-#      - GF_SECURITY_ADMIN_USER=admin
-#      - GF_SECURITY_ADMIN_PASSWORD=admin
-#    depends_on:
-#      - prometheus
-#      - loki
-#    networks:
-#      - smartsure-network
-#
-#networks:
-#  smartsure-network:
-#    driver: bridge
-#
-#volumes:
-#  mysql-data:
-#  redis-data:
-version: '3.8'
-
 services:
-  # ==========================================
-  # MESSAGE BROKER & CACHE
-  # ==========================================
+
   redis:
     image: redis:alpine
     container_name: smartsure-redis
@@ -107,6 +9,10 @@ services:
       - redis-data:/data
     networks:
       - smartsure-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   rabbitmq:
     image: rabbitmq:3-management
@@ -119,10 +25,11 @@ services:
       RABBITMQ_DEFAULT_PASS: smartsure
     networks:
       - smartsure-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
-  # ==========================================
-  # OBSERVABILITY STACK
-  # ==========================================
   zipkin:
     image: openzipkin/zipkin
     container_name: smartsure-zipkin
@@ -130,6 +37,10 @@ services:
       - "9411:9411"
     networks:
       - smartsure-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   prometheus:
     image: prom/prometheus
@@ -140,6 +51,10 @@ services:
       - "9090:9090"
     networks:
       - smartsure-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
 
   loki:
     image: grafana/loki:latest
@@ -149,12 +64,16 @@ services:
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - smartsure-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
   grafana:
     image: grafana/grafana:latest
     container_name: smartsure-grafana
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
@@ -163,6 +82,12 @@ services:
       - loki
     networks:
       - smartsure-network
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+
 
 networks:
   smartsure-network:
